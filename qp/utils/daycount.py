@@ -40,9 +40,7 @@ def thirty_365(start: dt.date, end: dt.date):
     return get_thirty_days(start, end, 365) / 365
 
 def bus_252(start: dt.date, end: dt.date, hols: list[dt.date]):
-    if hols is not None:
-        return len(pd.bdate_range(start, end, freq="C", holidays=hols)) / 252
-    return len(pd.bdate_range(start, end)) / 252
+    return len(pd.bdate_range(start, end, freq="C", holidays=hols, inclusive="left")) / 252
 
 def yearfrac(start: dt.date, end: dt.date, daycount: Daycount, currency: str = None) -> None | float:
     hols = None

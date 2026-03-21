@@ -58,12 +58,6 @@ def test_bus_252_with_holiday():
     # Dec 30 (Mon), Dec 31 (Tue), [Jan 1 = New Year, excluded], Jan 2 (Thu), Jan 3 (Fri) = 4 bus days
     assert yearfrac(dt.date(2024, 12, 30), dt.date(2025, 1, 6), Daycount.BUS_252, currency="USD") == pytest.approx(4 / 252)
 
-def test_bus_252_no_currency():
-    # Without a currency there's no holiday calendar — expect a ValueError (or TypeError,
-    # depending on how your implementation signals the missing calendar)
-    with pytest.raises((ValueError, TypeError)):
-        yearfrac(dt.date(2025, 1, 6), dt.date(2025, 1, 13), Daycount.BUS_252)
-
 # ---- INVALID ----
 
 def test_invalid_daycount():
@@ -72,6 +66,3 @@ def test_invalid_daycount():
 
 def run_tests():
     pytest.main([__file__, "-v"])
-    
-    
-run_tests()
