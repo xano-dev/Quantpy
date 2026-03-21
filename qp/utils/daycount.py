@@ -1,7 +1,7 @@
 import pandas as pd
 import datetime as dt
 from enum import StrEnum
-from utils.holiday_helper import get_holidays
+from qp.utils.holiday_helper import get_holidays
 
 class Daycount(StrEnum):
     ACT_360 = "ACT/360"
