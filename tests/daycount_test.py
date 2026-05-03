@@ -1,6 +1,6 @@
 import datetime as dt
 import pytest
-from qp.utils.daycount import yearfrac, Daycount
+from qp.time.daycount import yearfrac, Daycount
 
 # ---- ACT/360 ----
 

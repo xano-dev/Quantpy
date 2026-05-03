@@ -1,7 +1,8 @@
 import pandas as pd
 import datetime as dt
 from enum import StrEnum
-from qp.utils.holiday_helper import get_holidays
+from qp.time.holiday_helper import get_holidays
+from qp.utils.maps.currencies import Currency
 
 class Daycount(StrEnum):
     ACT_360 = "ACT/360"
@@ -11,7 +12,7 @@ class Daycount(StrEnum):
     BUS_252 = "BUS/252"
 
 
-def get_thirty_days(start: dt.date, end: dt.date, denom: int):
+def get_thirty_days(start: dt.date, end: dt.date, denom: int) -> float:
     total_year_days = (end.year - start.year) * denom 
     total_month_days = (end.month - start.month) * 30
     start_day = start.day
@@ -24,35 +25,33 @@ def get_thirty_days(start: dt.date, end: dt.date, denom: int):
     
     return thirty_days
 
-def get_actual_days(start: dt.date, end: dt.date):
+def get_actual_days(start: dt.date, end: dt.date) -> float:
     return (end - start).days
 
-def act_360(start: dt.date, end: dt.date):
+def act_360(start: dt.date, end: dt.date) -> float:
     return get_actual_days(start, end) / 360
 
-def act_365(start: dt.date, end: dt.date):
+def act_365(start: dt.date, end: dt.date) -> float:
     return get_actual_days(start, end) / 365
 
-def thirty_360(start: dt.date, end: dt.date):
+def thirty_360(start: dt.date, end: dt.date) -> float:
     return get_thirty_days(start, end, 360) / 360
 
-def thirty_365(start: dt.date, end: dt.date):
+def thirty_365(start: dt.date, end: dt.date) -> float:
     return get_thirty_days(start, end, 365) / 365
 
-def bus_252(start: dt.date, end: dt.date, hols: list[dt.date]):
+def bus_252(start: dt.date, end: dt.date, hols: set[dt.date]) -> float:
     return len(pd.bdate_range(start, end, freq="C", holidays=hols, inclusive="left")) / 252
 
-def yearfrac(start: dt.date, end: dt.date, daycount: Daycount, currency: str = None) -> None | float:
-    hols = None
-    
-    if currency is not None:
-        hols = get_holidays(currency, years = tuple(range(start.year, end.year + 1)))
+def yearfrac(start: dt.date, end: dt.date, daycount: Daycount, currency: Currency = None) -> float:
+    hols = None if currency is None else get_holidays(currency, years = tuple(range(start.year, end.year + 1)))
         
     yearfrac_fn = DAYCOUNT_FN_MAP.get(daycount)
     
     if yearfrac_fn is None:
         raise KeyError(f"Error: Invalid / Unimplemented daycount convention '{daycount}'. Valid daycount conventions are: {list(Daycount)}")
     
+    # business days needs holidays
     if daycount == Daycount.BUS_252:
         return yearfrac_fn(start, end, hols)
     
