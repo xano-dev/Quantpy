@@ -35,5 +35,5 @@ graph TD
 - [x] Date rolling conventions
 - [x] Holiday calendars
 - [x] CashFlowSchedule
-- [ ] FX Forward
-- [ ] ...
+- [x] FX Forward Instrument
+- [ ] FX Curve

@@ -12,6 +12,33 @@ from qp.utils.maps.currencies import Currency
 
 
 class CashFlowSchedule:
+    """Python representation of a cashflow schedule. Schedule calculated exclusive of start date and inclusive of end date. Created by models/ after computing cashflow amounts.
+
+    Args:
+        start_date: start date of the schedule
+        end_date: end date of the schedule
+        frequency: payment frequency
+        currency: currency of the schedule
+        daycount: daycount convention
+        dateroll: dateroll convention
+        amounts: number value of each cashflow in the schedule
+        dayroll: roll day of the schedule
+    Example:
+        >>> cf_schedule = CashFlowSchedule(
+        ...     start_date=dt.date(2026, 1, 1),
+        ...     end_date=dt.date(2026, 12, 31),
+        ...     frequency="quarterly",
+        ...     currency=Currency.USD,
+        ...     daycount=Daycount.ACT_360,
+        ...     dateroll=Dateroll.MODIFIED_FOLLOWING,
+        ...     amounts=np.array([10, 20, 30, 40]),
+        ...     dayroll=16
+        ... )
+    Raises:
+        ValueError: if dayroll exceeds 31.
+        ValueError: if amounts length does not match number of payment dates.
+    """
+
     def __init__(
         self,
         start_date: dt.date,
