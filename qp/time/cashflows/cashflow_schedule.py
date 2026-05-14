@@ -47,7 +47,7 @@ class CashFlowSchedule:
         currency: Currency,
         daycount: Daycount,
         dateroll: Dateroll,
-        amounts: np.ndarray,
+        amounts: list[float] | np.ndarray,
         dayroll: int | None = None,
     ):
         self._start_date = start_date
@@ -56,7 +56,7 @@ class CashFlowSchedule:
         self._currency = currency
         self._daycount = daycount
         self._dateroll = dateroll
-        self._amounts = amounts
+        self._amounts = np.array(amounts)
 
         if dayroll is None:
             self._dayroll = end_date.day
@@ -139,11 +139,9 @@ class CashFlowSchedule:
         return np.sort(np.array(payment_dates))
 
     def _generate_yearfracs(self):
-        yearfracs: list = []
-        for date in self._payment_dates:
-            yf: float = yearfrac(self._start_date, date, self._daycount, self._currency)
-            yearfracs.append(yf)
-        return np.array(yearfracs)
+        return yearfrac(
+            self._start_date, self._payment_dates, self._daycount, self._currency
+        )
 
     def to_dataframe(self):
         return pd.DataFrame(

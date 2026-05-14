@@ -62,7 +62,7 @@ def test_properties(curve_from_floats):
     assert curve.daycount == Daycount.ACT_360
     assert curve.currency_1 == Currency.EUR
     assert curve.currency_2 == Currency.USD
-    assert curve.fx_rates == FX_RATES
+    assert np.array_equal(curve.fx_rates, np.array(FX_RATES))
     assert curve.interpolation_method == InterpolationMethod.LOG_LINEAR
     assert curve.extrapolate is False
 
@@ -77,7 +77,7 @@ def test_spot_rate(curve_from_floats):
 
 def test_float_tenors_stored_as_is(curve_from_floats):
     curve, _ = curve_from_floats
-    assert curve.tenors == TENOR_FLOATS
+    assert np.array_equal(curve.tenors, np.array(TENOR_FLOATS))
 
 
 def test_date_tenors_converted_via_yearfrac():
@@ -118,7 +118,7 @@ def test_interpolator_constructed_with_correct_args(curve_from_floats):
 def test_get_rate_delegates_to_interpolator(curve_from_floats):
     curve, (_, mock_instance) = curve_from_floats
     mock_instance.interpolate.return_value = 1.165
-    assert curve.get_rate(0.1) == 1.165
+    assert curve.get_rates(0.1) == 1.165
     mock_instance.interpolate.assert_called_once_with(0.1)
 
 

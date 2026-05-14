@@ -65,7 +65,7 @@ def is_business_day(date: dt.date, hols: set[dt.date] = None) -> bool:
     return not (weekend_cond or hol_cond)
 
 
-def roll_day(date: dt.date, dateroll: Dateroll, currency: Currency = None):
+def roll_day(date: dt.date, dateroll: Dateroll, currency: Currency = None) -> dt.date:
     hols = (
         None
         if currency is None

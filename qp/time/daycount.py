@@ -61,7 +61,7 @@ def bus_252(start: dt.date, end: dt.date, hols: set[dt.date]) -> float:
 # --- Vectorised helpers ---
 
 
-def get_thirty_days_vec(start: dt.date, ends: np.ndarray, denom: int) -> float:
+def get_thirty_days_vec(start: dt.date, ends: np.ndarray, denom: int) -> int:
 
     years = ends.astype("datetime64[Y]").astype(int) + 1970
     months = ends.astype("datetime64[M]").astype(int) % 12 + 1
@@ -108,7 +108,7 @@ def yearfrac(
     daycount: Daycount,
     currency_1: Currency = None,
     currency_2: Currency = None,
-) -> float:
+) -> float | np.ndarray:
     is_scalar = isinstance(end, dt.date)
     max_year = end.year if is_scalar else max(end).year
     ends = end if is_scalar else np.array(end, dtype="datetime64[D]")

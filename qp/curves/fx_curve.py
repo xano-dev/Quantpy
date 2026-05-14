@@ -39,8 +39,8 @@ class FXCurve:
         daycount: Daycount,
         currency_1: Currency,
         currency_2: Currency,
-        fx_rates: list[float],
-        tenors: list[dt.date] | list[float],
+        fx_rates: list[float] | np.ndarray,
+        tenors: list[dt.date] | list[float] | np.ndarray,
         interpolation_method: InterpolationMethod = InterpolationMethod.LOG_LINEAR,
         extrapolate: bool = False,
     ):
@@ -48,12 +48,12 @@ class FXCurve:
         self._daycount = daycount
         self._currency_1 = currency_1
         self._currency_2 = currency_2
-        self._fx_rates = fx_rates
+        self._fx_rates = np.array(fx_rates)
 
         if all(isinstance(item, dt.date) for item in tenors):
             self._tenors = self._get_tenors(tenors)
         else:
-            self._tenors = tenors
+            self._tenors = np.array(tenors)
 
         self._catch_errors()
 
@@ -110,11 +110,11 @@ class FXCurve:
 
     def _generate_interpolator(self):
         return Interpolator(
-            np.array(self._tenors),
-            np.array(self._fx_rates),
+            self._tenors,
+            self._fx_rates,
             self._interpolation_method,
             self._extrapolate,
         )
 
-    def get_rate(self, tenor: float) -> float:
+    def get_rates(self, tenor: float | np.ndarray) -> float:
         return self._interpolator.interpolate(tenor)
