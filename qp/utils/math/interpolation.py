@@ -58,6 +58,9 @@ class Interpolator:
         self._y = y_values
         self._interpolation_method = interpolation_method
         self._extrapolate = extrapolate
+
+        self._catch_errors()
+
         self._interp_fn = self._generate_interpolator()
 
     @property
@@ -75,6 +78,18 @@ class Interpolator:
     @property
     def extrapolate(self):
         return self._extrapolate
+
+    def _catch_errors(self):
+        if self._interpolation_method == InterpolationMethod.LOG_LINEAR:
+            if np.any(self._y <= 0):
+                raise ValueError(
+                    f"One or more y values are invalid for log transformation: {self._y}"
+                )
+
+        if not np.all(np.diff(self._x) > 0):
+            raise ValueError(
+                f"x values should be increasing monotonically with no duplicates {self._x}"
+            )
 
     def _generate_interpolator(self):
 
