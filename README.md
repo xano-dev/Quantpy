@@ -36,5 +36,8 @@ graph TD
 - [x] Holiday calendars
 - [x] CashFlowSchedule
 - [x] FX Forward Instrument
-- [WIP] Interpolator
-- [ ] FX Curve
+- [x] Interpolator
+- [x] FX Curve
+- [x] IR Curve
+- [ ] FX Forward Model
+- [ ] Price & Risk
