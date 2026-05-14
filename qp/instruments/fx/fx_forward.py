@@ -39,7 +39,7 @@ class FXForward:
         notional1: float,
         notional2: float,
         maturity_date: dt.date,
-        collateral_ccy: Currency | None = None,
+        collateral_ccy: Currency | None = Currency.USD,
     ):
 
         self._buy_sell = buy_sell
