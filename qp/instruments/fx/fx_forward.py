@@ -1,8 +1,7 @@
 import datetime as dt
-from typing import Literal
 
+from qp.utils.maps.buysell import BuySell
 from qp.utils.maps.currencies import Currency
-from qp.curves.fx_curve import FXCurve
 
 
 class FXForward:
@@ -20,7 +19,7 @@ class FXForward:
         collateral_ccy: collateral currency (if any) - default discounting is USD SOFR
     Example:
         >>> forward = FXForward(
-        ...     buy_sell="Buy",
+        ...     buy_sell=BuySell.BUY,
         ...     base_ccy=Currency.EUR,
         ...     term_ccy=Currency.USD,
         ...     notional1=1_000_000,
@@ -32,7 +31,7 @@ class FXForward:
 
     def __init__(
         self,
-        buy_sell: Literal["Buy", "Sell"],
+        buy_sell: BuySell,
         base_ccy: Currency,
         term_ccy: Currency,
         notional1: float,
@@ -41,7 +40,7 @@ class FXForward:
         collateral_ccy: Currency | None = Currency.USD,
     ):
 
-        self._buy_sell = buy_sell
+        self._buy_sell = BuySell(buy_sell)
         self._base_ccy = base_ccy
         self._term_ccy = term_ccy
         self._notional1 = notional1

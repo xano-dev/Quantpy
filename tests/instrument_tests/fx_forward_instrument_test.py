@@ -2,9 +2,10 @@ import datetime as dt
 import pytest
 from qp.instruments.fx.fx_forward import FXForward
 from qp.utils.maps.currencies import Currency
+from qp.utils.maps.buysell import BuySell
 
-BUY_SELL_BUY = "Buy"
-BUY_SELL_SELL = "Sell"
+BUY_SELL_BUY = BuySell.BUY
+BUY_SELL_SELL = BuySell.SELL
 BASE_CCY = Currency.EUR
 TERM_CCY = Currency.USD
 NOTIONAL1 = 1_000_000

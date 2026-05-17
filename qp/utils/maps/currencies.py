@@ -14,3 +14,7 @@ class Currency(StrEnum):
     SEK = "SEK"
     HKD = "HKD"
     SGD = "SGD"
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls(value.upper())

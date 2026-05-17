@@ -12,61 +12,52 @@ from qp.utils.maps.currencies import Currency
 
 
 class CashFlowSchedule:
-    """Python representation of a cashflow schedule. Schedule calculated exclusive of start date and inclusive of end date. Created by models/ after computing cashflow amounts.
+    """Minimal cashflow schedule defined by explicit payment dates and amounts.
+
+    This is the base contract: a sorted array of payment dates, a corresponding
+    array of cashflow amounts, and the metadata needed to compute year fractions
+    and discount.  No knowledge of generation frequency, day-roll, or date-roll
+    conventions lives here.
 
     Args:
-        start_date: start date of the schedule
-        end_date: end date of the schedule
-        frequency: payment frequency
-        currency: currency of the schedule
-        daycount: daycount convention
-        dateroll: dateroll convention
-        amounts: number value of each cashflow in the schedule
-        dayroll: roll day of the schedule
+        start_date: Accrual start date (exclusive). Used only for year-fraction calculation.
+        payment_dates: Ordered sequence of payment dates (inclusive of the final end date).
+        amounts: Cashflow amount for each payment date.  Must be the same length as `payment_dates`.
+        currency: Currency of the cashflows.
+        daycount: Daycount convention used to compute year fractions.
+        collateral_currency: Discount currency.  Defaults to `currency` when omitted.
+
+    Raises:
+        ValueError: If `amounts` length does not match `payment_dates`.
+
     Example:
-        >>> cf_schedule = CashFlowSchedule(
+        >>> cf = CashFlowSchedule(
         ...     start_date=dt.date(2026, 1, 1),
-        ...     end_date=dt.date(2026, 12, 31),
-        ...     frequency="quarterly",
+        ...     payment_dates=[dt.date(2026, 4, 1), dt.date(2026, 7, 1), dt.date(2026, 10, 1), dt.date(2026, 12, 31)],
+        ...     amounts=np.array([10, 20, 30, 40]),
         ...     currency=Currency.USD,
         ...     daycount=Daycount.ACT_360,
-        ...     dateroll=Dateroll.MODIFIED_FOLLOWING,
-        ...     amounts=np.array([10, 20, 30, 40]),
-        ...     dayroll=16
         ... )
-    Raises:
-        ValueError: if dayroll exceeds 31.
-        ValueError: if amounts length does not match number of payment dates.
     """
 
     def __init__(
         self,
         start_date: dt.date,
-        end_date: dt.date,
-        frequency: Literal["monthly", "quarterly", "semiannual", "annual"],
+        payment_dates: list[dt.date] | np.ndarray,
+        amounts: list[float] | np.ndarray,
         currency: Currency,
         daycount: Daycount,
-        dateroll: Dateroll,
-        amounts: list[float] | np.ndarray,
-        dayroll: int | None = None,
+        collateral_currency: Currency | None = None,
     ):
         self._start_date = start_date
-        self._end_date = end_date
-        self._frequency = frequency
+        self._payment_dates = np.array(payment_dates)
+        self._end_date = max(payment_dates)
+        self._amounts = np.array(amounts)
         self._currency = currency
         self._daycount = daycount
-        self._dateroll = dateroll
-        self._amounts = np.array(amounts)
-
-        if dayroll is None:
-            self._dayroll = end_date.day
-        else:
-            self._dayroll = dayroll
-
-        if self._dayroll > 31:
-            raise ValueError(f"Invalid dayroll: {self._dayroll}")
-
-        self._payment_dates = self._generate_dates()
+        self._collateral_currency = (
+            collateral_currency if collateral_currency is not None else currency
+        )
 
         if len(self._amounts) != len(self._payment_dates):
             raise ValueError(
@@ -85,20 +76,12 @@ class CashFlowSchedule:
         return self._end_date
 
     @property
-    def frequency(self):
-        return self._frequency
-
-    @property
     def currency(self):
         return self._currency
 
     @property
     def daycount(self):
         return self._daycount
-
-    @property
-    def dateroll(self):
-        return self._dateroll
 
     @property
     def amounts(self):
@@ -113,30 +96,8 @@ class CashFlowSchedule:
         return self._yearfracs
 
     @property
-    def dayroll(self):
-        return self._dayroll
-
-    def _apply_dayroll(self, year: int, month: int):
-        max_day = monthrange(year, month)[1]
-        day = min(self._dayroll, max_day)
-        return dt.date(year, month, day)
-
-    def _generate_dates(self):
-
-        step: relativedelta = FREQUENCY_MAP[self._frequency]
-
-        stepped = self._end_date - step
-        step_date = self._apply_dayroll(stepped.year, stepped.month)
-
-        payment_dates: list = [self._end_date]
-
-        while step_date > self._start_date:
-            rolled_date = roll_day(step_date, self._dateroll, self._currency)
-            payment_dates.append(rolled_date)
-            stepped = step_date - step
-            step_date = self._apply_dayroll(stepped.year, stepped.month)
-
-        return np.sort(np.array(payment_dates))
+    def collateral_currency(self):
+        return self._collateral_currency
 
     def _generate_yearfracs(self):
         return yearfrac(
@@ -155,22 +116,110 @@ class CashFlowSchedule:
     def _repr_html_(self):
         return self.to_dataframe()._repr_html_()
 
-    @classmethod
-    def from_dates(
-        cls,
+
+class PeriodicCashFlowSchedule(CashFlowSchedule):
+    """Cashflow schedule whose payment dates are generated from a frequency rule.
+
+    Dates are generated by stepping backward from `end_date` in `frequency`
+    increments, applying `dayroll` and `dateroll` at each step.  Amounts are
+    assigned after date generation and must align with the resulting date array.
+
+    The schedule is exclusive of `start_date` and inclusive of `end_date`,
+    matching the original convention.
+
+    Args:
+        start_date: Accrual start date (exclusive).
+        end_date: Final payment / accrual end date (inclusive).
+        frequency: Payment frequency - `"monthly"`, `"quarterly"`, `"semiannual"`, or `"annual"`.
+        currency: Currency of the cashflows.
+        daycount: Daycount convention.
+        dateroll: Business-day adjustment convention.
+        amounts: Cashflow amount for each generated payment date.  Must match the number of dates produced by the schedule.
+        dayroll: Day-of-month anchor used when stepping backward.  Defaults to the day of `end_date`.
+        collateral_currency: Discount currency.  Defaults to `currency`.
+
+    Raises:
+        ValueError: If `dayroll` exceeds 31.
+        ValueError: If `amounts` length does not match the generated date count.
+
+    Example:
+        >>> cf = PeriodicCashFlowSchedule(
+        ...     start_date=dt.date(2026, 1, 1),
+        ...     end_date=dt.date(2026, 12, 31),
+        ...     frequency="quarterly",
+        ...     currency=Currency.USD,
+        ...     daycount=Daycount.ACT_360,
+        ...     dateroll=Dateroll.MODIFIED_FOLLOWING,
+        ...     amounts=np.array([10, 20, 30, 40]),
+        ...     dayroll=16,
+        ...     collateral_currency=Currency.USD,
+        ... )
+    """
+
+    def __init__(
+        self,
         start_date: dt.date,
-        payment_dates: list[dt.date] | np.ndarray,
-        amounts: float | list[float] | np.ndarray,
+        end_date: dt.date,
+        frequency: Literal["monthly", "quarterly", "semiannual", "annual"],
         currency: Currency,
         daycount: Daycount,
+        dateroll: Dateroll,
+        amounts: list[float] | np.ndarray,
+        dayroll: int | None = None,
+        collateral_currency: Currency | None = None,
     ):
-        obj = cls.__new__(cls)
-        obj._start_date = start_date
-        obj._payment_dates = np.array(payment_dates)
-        obj._amounts = np.array(amounts)
-        obj._currency = currency
-        obj._daycount = daycount
+        if dayroll is not None and dayroll > 31:
+            raise ValueError(f"Invalid dayroll: {dayroll}")
 
-        obj._yearfracs = obj._generate_yearfracs()
+        self._frequency = frequency
+        self._dateroll = dateroll
+        self._dayroll = end_date.day if dayroll is None else dayroll
 
-        return obj
+        payment_dates = self._generate_dates(start_date, end_date, currency)
+
+        super().__init__(
+            start_date=start_date,
+            payment_dates=payment_dates,
+            amounts=amounts,
+            currency=currency,
+            daycount=daycount,
+            collateral_currency=collateral_currency,
+        )
+
+    @property
+    def frequency(self):
+        return self._frequency
+
+    @property
+    def dateroll(self):
+        return self._dateroll
+
+    @property
+    def dayroll(self):
+        return self._dayroll
+
+    def _apply_dayroll(self, year: int, month: int) -> dt.date:
+        max_day = monthrange(year, month)[1]
+        day = min(self._dayroll, max_day)
+        return dt.date(year, month, day)
+
+    def _generate_dates(
+        self,
+        start_date: dt.date,
+        end_date: dt.date,
+        currency: Currency,
+    ) -> np.ndarray:
+        step: relativedelta = FREQUENCY_MAP[self._frequency]
+
+        stepped = end_date - step
+        step_date = self._apply_dayroll(stepped.year, stepped.month)
+
+        payment_dates: list[dt.date] = [end_date]
+
+        while step_date > start_date:
+            rolled_date = roll_day(step_date, self._dateroll, currency)
+            payment_dates.append(rolled_date)
+            stepped = step_date - step
+            step_date = self._apply_dayroll(stepped.year, stepped.month)
+
+        return np.sort(np.array(payment_dates))
