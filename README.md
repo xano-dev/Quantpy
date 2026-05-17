@@ -39,5 +39,5 @@ graph TD
 - [x] Interpolator
 - [x] FX Curve
 - [x] IR Curve
-- [ ] FX Forward Model
+- [x] FX Forward Model
 - [ ] Price & Risk

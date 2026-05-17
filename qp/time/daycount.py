@@ -104,7 +104,7 @@ def bus_252_vec(start: dt.date, ends: np.ndarray, hols: set[dt.date]) -> np.ndar
 
 def yearfrac(
     start: dt.date,
-    end: dt.date | list[dt.date],
+    end: dt.date | list[dt.date] | np.ndarray,
     daycount: Daycount,
     currency_1: Currency = None,
     currency_2: Currency = None,

@@ -2,28 +2,27 @@ import datetime as dt
 from typing import Literal
 
 from qp.utils.maps.currencies import Currency
+from qp.curves.fx_curve import FXCurve
 
 
 class FXForward:
     """Python representation of an FX Forward. Strike is computed from notionals.
 
-    -   Strike is computed as notional2/notional1 for Buy,
-        and notional1/notional2 for Sell, consistent with
-        quoting all FX rates as foreign/USD.
+    -   Strike is computed as notional2/notional1 (term / base) always
 
     Args:
-        buy_sell: buy/sell ccy1
-        ccy1: first currency of the FX Forward
-        ccy2: second currency of the FX Forward
-        notional1: notional of ccy1
-        notional2: notional of ccy2
+        buy_sell: buy/sell base_ccy
+        base_ccy: first currency of the FX Forward
+        term_ccy: second currency of the FX Forward
+        notional1: notional of base_ccy
+        notional2: notional of term_ccy
         maturity_date: maturity date of the FX Forward
         collateral_ccy: collateral currency (if any) - default discounting is USD SOFR
     Example:
         >>> forward = FXForward(
         ...     buy_sell="Buy",
-        ...     ccy1=Currency.EUR,
-        ...     ccy2=Currency.USD,
+        ...     base_ccy=Currency.EUR,
+        ...     term_ccy=Currency.USD,
         ...     notional1=1_000_000,
         ...     notional2=500_000,
         ...     maturity_date=dt.date(2028, 5, 10),
@@ -34,8 +33,8 @@ class FXForward:
     def __init__(
         self,
         buy_sell: Literal["Buy", "Sell"],
-        ccy1: Currency,
-        ccy2: Currency,
+        base_ccy: Currency,
+        term_ccy: Currency,
         notional1: float,
         notional2: float,
         maturity_date: dt.date,
@@ -43,8 +42,8 @@ class FXForward:
     ):
 
         self._buy_sell = buy_sell
-        self._ccy1 = ccy1
-        self._ccy2 = ccy2
+        self._base_ccy = base_ccy
+        self._term_ccy = term_ccy
         self._notional1 = notional1
         self._notional2 = notional2
         self._maturity_date = maturity_date
@@ -55,12 +54,12 @@ class FXForward:
         return self._buy_sell
 
     @property
-    def ccy1(self):
-        return self._ccy1
+    def base_ccy(self):
+        return self._base_ccy
 
     @property
-    def ccy2(self):
-        return self._ccy2
+    def term_ccy(self):
+        return self._term_ccy
 
     @property
     def notional1(self):
@@ -80,8 +79,4 @@ class FXForward:
 
     @property
     def strike(self):
-        return (
-            self._notional2 / self._notional1
-            if self._buy_sell == "Buy"
-            else self._notional1 / self._notional2
-        )
+        return self._notional2 / self._notional1

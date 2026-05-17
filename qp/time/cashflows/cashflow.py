@@ -9,4 +9,4 @@ class CashFlow:
 
     date: dt.date
     currency: Currency
-    value: float | None = None
+    amount: float

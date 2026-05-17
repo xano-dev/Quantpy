@@ -154,3 +154,23 @@ class CashFlowSchedule:
 
     def _repr_html_(self):
         return self.to_dataframe()._repr_html_()
+
+    @classmethod
+    def from_dates(
+        cls,
+        start_date: dt.date,
+        payment_dates: list[dt.date] | np.ndarray,
+        amounts: float | list[float] | np.ndarray,
+        currency: Currency,
+        daycount: Daycount,
+    ):
+        obj = cls.__new__(cls)
+        obj._start_date = start_date
+        obj._payment_dates = np.array(payment_dates)
+        obj._amounts = np.array(amounts)
+        obj._currency = currency
+        obj._daycount = daycount
+
+        obj._yearfracs = obj._generate_yearfracs()
+
+        return obj

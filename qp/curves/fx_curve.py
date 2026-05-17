@@ -116,5 +116,7 @@ class FXCurve:
             self._extrapolate,
         )
 
-    def get_rates(self, tenor: float | np.ndarray) -> float:
+    def get_rates(self, tenor: float | np.ndarray | dt.date) -> float:
+        if isinstance(tenor, dt.date):
+            tenor = yearfrac(self.at_date, tenor, self._daycount)
         return self._interpolator.interpolate(tenor)
