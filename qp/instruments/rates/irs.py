@@ -50,7 +50,7 @@ class IRBaseLeg:
         self._collateral_currency = collateral_currency
         self._daycount = daycount
         self._dateroll = dateroll
-        self._pay_receive = pay_receive
+        self._pay_receive = PayReceive(pay_receive)
         self._payment_lag = payment_lag
         self._dayroll = dayroll if dayroll is not None else end_date.day
 

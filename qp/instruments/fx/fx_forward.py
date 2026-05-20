@@ -40,7 +40,7 @@ class FXForward:
         collateral_ccy: Currency | None = Currency.USD,
     ):
 
-        self._buy_sell = buy_sell
+        self._buy_sell = BuySell(buy_sell)
         self._base_ccy = base_ccy
         self._term_ccy = term_ccy
         self._notional1 = notional1

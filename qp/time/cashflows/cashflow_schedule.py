@@ -128,7 +128,6 @@ class CashFlowSchedule:
         return yearfrac(self._start_date, dates, self._daycount, self._currency)
 
     def _generate_periodic_yearfracs(self, dates: np.ndarray):
-        print(np.concatenate([np.array([self._start_date]), dates[:-1]]))
         return yearfrac(
             np.concatenate([np.array([self._start_date]), dates[:-1]]),
             dates,
