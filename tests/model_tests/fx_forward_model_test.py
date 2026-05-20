@@ -96,28 +96,28 @@ def test_buy_eur_aud_payoff():
 
     fwd_fx = 1.127 / 0.727
     expected = 1_000_000 * (fwd_fx - 0.5) * 0.727
-    assert float(cf.amounts[0]) == pytest.approx(expected, rel=1e-6)
+    assert float(cf.cashflows[0]) == pytest.approx(expected, rel=1e-6)
 
 
 def test_sell_payoff_is_opposite_of_buy():
     cf_buy = make_model().price(make_forward(buy_sell="Buy"))
     cf_sell = make_model().price(make_forward(buy_sell="Sell"))
-    assert float(cf_buy.amounts[0]) == pytest.approx(
-        -float(cf_sell.amounts[0]), rel=1e-6
+    assert float(cf_buy.cashflows[0]) == pytest.approx(
+        -float(cf_sell.cashflows[0]), rel=1e-6
     )
 
 
 def test_atm_forward_has_zero_payoff():
     fwd_fx = 1.127 / 0.727
     cf = make_model().price(make_forward(notional2=fwd_fx * 1_000_000))
-    assert float(cf.amounts[0]) == pytest.approx(0.0, abs=1e-4)
+    assert float(cf.cashflows[0]) == pytest.approx(0.0, abs=1e-4)
 
 
 def test_payoff_doubles_with_double_notional():
     cf_1x = make_model().price(make_forward(notional1=1_000_000, notional2=500_000))
     cf_2x = make_model().price(make_forward(notional1=2_000_000, notional2=1_000_000))
-    assert float(cf_2x.amounts[0]) == pytest.approx(
-        2 * float(cf_1x.amounts[0]), rel=1e-6
+    assert float(cf_2x.cashflows[0]) == pytest.approx(
+        2 * float(cf_1x.cashflows[0]), rel=1e-6
     )
 
 
@@ -136,7 +136,7 @@ def test_usd_base_uses_unit_rate():
 
     fwd_fx = 1 / 0.727
     expected = 1_000_000 * (fwd_fx - 0.5) * 0.727
-    assert float(cf.amounts[0]) == pytest.approx(expected, rel=1e-6)
+    assert float(cf.cashflows[0]) == pytest.approx(expected, rel=1e-6)
 
 
 def test_usd_term_uses_unit_rate():
@@ -153,7 +153,7 @@ def test_usd_term_uses_unit_rate():
             notional2=1_100_000,
         )
     )
-    assert float(cf.amounts[0]) == pytest.approx(1_000_000 * (1.127 - 1.10), rel=1e-6)
+    assert float(cf.cashflows[0]) == pytest.approx(1_000_000 * (1.127 - 1.10), rel=1e-6)
 
 
 def test_eur_usd_payoff():
@@ -170,4 +170,4 @@ def test_eur_usd_payoff():
             notional2=1_100_000,
         )
     )
-    assert float(cf.amounts[0]) == pytest.approx(1_000_000 * (1.127 - 1.10), rel=1e-6)
+    assert float(cf.cashflows[0]) == pytest.approx(1_000_000 * (1.127 - 1.10), rel=1e-6)

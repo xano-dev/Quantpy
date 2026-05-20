@@ -20,7 +20,7 @@ FREQUENCY = "quarterly"
 CURRENCY = Currency.USD
 DAYCOUNT = Daycount.ACT_360
 DATEROLL = Dateroll.MODIFIED_FOLLOWING
-AMOUNTS = np.ones(4)
+CASHFLOWS = np.ones(4)
 
 EXPLICIT_DATES = [
     dt.date(2026, 3, 31),
@@ -39,7 +39,7 @@ def periodic():
         currency=CURRENCY,
         daycount=DAYCOUNT,
         dateroll=DATEROLL,
-        amounts=AMOUNTS,
+        cashflows=CASHFLOWS,
     )
 
 
@@ -48,7 +48,7 @@ def base():
     return CashFlowSchedule(
         start_date=START,
         payment_dates=EXPLICIT_DATES,
-        amounts=AMOUNTS,
+        cashflows=CASHFLOWS,
         currency=CURRENCY,
         daycount=DAYCOUNT,
     )
@@ -70,7 +70,7 @@ def test_base_end_date_derived_from_max_payment_date(base):
 
 
 def test_base_amounts_stored(base):
-    np.testing.assert_array_equal(base.amounts, AMOUNTS)
+    np.testing.assert_array_equal(base.cashflows, CASHFLOWS)
 
 
 def test_base_collateral_currency_defaults_to_currency(base):
@@ -81,7 +81,7 @@ def test_base_collateral_currency_explicit():
     schedule = CashFlowSchedule(
         start_date=START,
         payment_dates=EXPLICIT_DATES,
-        amounts=AMOUNTS,
+        cashflows=CASHFLOWS,
         currency=Currency.USD,
         daycount=DAYCOUNT,
         collateral_currency=Currency.EUR,
@@ -97,7 +97,7 @@ def test_base_amounts_length_mismatch_raises():
         CashFlowSchedule(
             start_date=START,
             payment_dates=EXPLICIT_DATES,
-            amounts=np.ones(100),
+            cashflows=np.ones(100),
             currency=CURRENCY,
             daycount=DAYCOUNT,
         )
@@ -183,7 +183,7 @@ def test_dayroll_explicit():
         currency=CURRENCY,
         daycount=DAYCOUNT,
         dateroll=DATEROLL,
-        amounts=AMOUNTS,
+        cashflows=CASHFLOWS,
         dayroll=16,
     )
     assert schedule.dayroll == 16
@@ -198,7 +198,7 @@ def test_dayroll_exceeds_31_raises():
             currency=CURRENCY,
             daycount=DAYCOUNT,
             dateroll=DATEROLL,
-            amounts=AMOUNTS,
+            cashflows=CASHFLOWS,
             dayroll=32,
         )
 
@@ -234,7 +234,7 @@ def test_periodic_amounts_mismatch_raises():
             currency=CURRENCY,
             daycount=DAYCOUNT,
             dateroll=DATEROLL,
-            amounts=np.ones(100),
+            cashflows=np.ones(100),
         )
 
 
