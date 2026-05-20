@@ -80,7 +80,7 @@ class CashFlowSchedule:
         self._payment_yearfracs: np.ndarray = self._generate_yearfracs(
             self._payment_dates
         )
-        self._accrual_yearfracs: np.ndarray = self._generate_yearfracs(
+        self._accrual_yearfracs: np.ndarray = self._generate_periodic_yearfracs(
             self._accrual_end_dates
         )
 
@@ -126,6 +126,15 @@ class CashFlowSchedule:
 
     def _generate_yearfracs(self, dates: np.ndarray):
         return yearfrac(self._start_date, dates, self._daycount, self._currency)
+
+    def _generate_periodic_yearfracs(self, dates: np.ndarray):
+        print(np.concatenate([np.array([self._start_date]), dates[:-1]]))
+        return yearfrac(
+            np.concatenate([np.array([self._start_date]), dates[:-1]]),
+            dates,
+            self._daycount,
+            self._currency,
+        )
 
     def to_dataframe(self):
         return pd.DataFrame(

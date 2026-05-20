@@ -34,13 +34,15 @@ graph TD
 - [x] Day count conventions
 - [x] Date rolling conventions
 - [x] Holiday calendars
-- [x] CashFlowSchedule
+- [x] CashFlowSchedule — base (`CashFlowSchedule`) and periodic (`PeriodicCashFlowSchedule`) with separate accrual/payment dates, business-day payment lag via `apply_payment_lag`
 - [x] FX Forward Instrument
 - [x] Interpolator
 - [x] FX Curve
 - [x] IR Curve
 - [x] FX Forward Model
 - [x] Price & Risk — DCF discounting (single and multi-currency)
-- [x] IRS Instruments (`IRBaseLeg`, `IRFixedLeg`, `IRFloatLeg`)
-- [ ] IRS Model
+- [x] IRS Instruments (`IRBaseLeg`, `IRFixedLeg`, `IRFloatingLeg`) — pay/receive, payment lag, OIS lookback
+- [x] Utils — `FloatingIndex`, `PayReceive`, `apply_payment_lag` with holiday-aware business day offset
+- [x] `yearfrac` vectorised start dates — scalar, vectorised end, and paired start/end arrays all supported
+- [ ] IRS Model — fixed leg (rate × notional × period yearfrac), floating leg (forward rate + spread × notional × period yearfrac)
 - [ ] Options (Greeks via bump-and-reprice)

@@ -61,24 +61,41 @@ def bus_252(start: dt.date, end: dt.date, hols: set[dt.date]) -> float:
 # --- Vectorised helpers ---
 
 
-def get_thirty_days_vec(start: dt.date, ends: np.ndarray, denom: int) -> int:
+def get_thirty_days_vec(starts: dt.date, ends: np.ndarray, denom: int) -> int:
 
-    years = ends.astype("datetime64[Y]").astype(int) + 1970
-    months = ends.astype("datetime64[M]").astype(int) % 12 + 1
-    days = (ends - ends.astype("datetime64[M]")).astype(int) + 1
+    end_years = ends.astype("datetime64[Y]").astype(int) + 1970
+    end_months = ends.astype("datetime64[M]").astype(int) % 12 + 1
+    end_days = (ends - ends.astype("datetime64[M]")).astype(int) + 1
 
-    total_year_days = (years - start.year) * denom
-    total_month_days = (months - start.month) * 30
-    start_day = 30 if start.day == 31 else start.day
-    end_day = np.where((days == 31) & ((start_day == 30) | (start_day == 31)), 30, days)
+    if isinstance(starts, dt.date):
+        start_years = starts.year
+        start_months = starts.month
+        start_days = 30 if starts.day == 31 else starts.day
+    else:
+        start_years = starts.astype("datetime64[Y]").astype(int) + 1970
+        start_months = starts.astype("datetime64[M]").astype(int) % 12 + 1
+        start_day_raw = (starts - starts.astype("datetime64[M]")).astype(int) + 1
+        start_days = np.where(start_day_raw == 31, 30, start_day_raw)
 
-    thirty_days = total_year_days + total_month_days - start_day + end_day
+    total_year_days = (end_years - start_years) * denom
+    total_month_days = (end_months - start_months) * 30
+
+    end_days = np.where(
+        (end_days == 31) & ((start_days == 30) | (start_days == 31)), 30, end_days
+    )
+
+    thirty_days = total_year_days + total_month_days - start_days + end_days
 
     return thirty_days
 
 
-def get_actual_days_vec(start: dt.date, ends: np.ndarray) -> np.ndarray:
-    return (ends - np.datetime64(start, "D")).astype(int)
+def get_actual_days_vec(start: dt.date | np.ndarray, ends: np.ndarray) -> np.ndarray:
+    starts = (
+        np.datetime64(start, "D")
+        if isinstance(start, dt.date)
+        else np.array(start, dtype="datetime64[D]")
+    )
+    return (ends - starts).astype(int)
 
 
 def act_360_vec(start: dt.date, ends: np.ndarray) -> np.ndarray:
@@ -97,33 +114,45 @@ def thirty_365_vec(start: dt.date, ends: np.ndarray) -> np.ndarray:
     return get_thirty_days_vec(start, ends, 365) / 365
 
 
-def bus_252_vec(start: dt.date, ends: np.ndarray, hols: set[dt.date]) -> np.ndarray:
+def bus_252_vec(
+    starts: dt.date | np.ndarray, ends: np.ndarray, hols: set[dt.date]
+) -> np.ndarray:
     hols = np.array(sorted(hols), dtype="datetime64[D]")
-    return np.busday_count(start, ends, holidays=hols) / 252
+    return np.busday_count(starts, ends, holidays=hols) / 252
 
 
 def yearfrac(
-    start: dt.date,
+    start: dt.date | list[dt.date] | np.ndarray,
     end: dt.date | list[dt.date] | np.ndarray,
     daycount: Daycount,
     currency_1: Currency = None,
     currency_2: Currency = None,
 ) -> float | np.ndarray:
-    is_scalar = isinstance(end, dt.date)
-    max_year = end.year if is_scalar else max(end).year
+    is_scalar = isinstance(start, dt.date) and isinstance(end, dt.date)
+
     ends = end if is_scalar else np.array(end, dtype="datetime64[D]")
+    starts = start if is_scalar else np.array(start, dtype="datetime64[D]")
+
+    # holiday range must cover every start and end year
+    if is_scalar:
+        min_year = start.year
+        max_year = end.year
+    else:
+        end_dates = np.array(end, dtype="datetime64[D]")
+        start_dates = np.array(start, dtype="datetime64[D]")
+        min_year = int(start_dates.astype("datetime64[Y]").astype(int).min()) + 1970
+        max_year = int(end_dates.astype("datetime64[Y]").astype(int).max()) + 1970
 
     def _get_currency_hols(currency):
         return (
             None
             if currency is None
-            else get_holidays(currency, years=tuple(range(start.year, max_year + 1)))
+            else get_holidays(currency, years=tuple(range(min_year, max_year + 1)))
         )
 
-    currency_1_hols = _get_currency_hols(currency_1)
-    currency_2_hols = _get_currency_hols(currency_2)
-
-    hols = (currency_1_hols or set()).union(currency_2_hols or set())
+    hols = (_get_currency_hols(currency_1) or set()).union(
+        _get_currency_hols(currency_2) or set()
+    )
 
     yearfrac_fn = (
         SCALAR_DAYCOUNT_FN_MAP.get(daycount)
@@ -133,14 +162,14 @@ def yearfrac(
 
     if yearfrac_fn is None:
         raise KeyError(
-            f"Error: Invalid / Unimplemented daycount convention '{daycount}'. Valid daycount conventions are: {list(Daycount)}"
+            f"Error: Invalid / Unimplemented daycount convention '{daycount}'. "
+            f"Valid daycount conventions are: {list(Daycount)}"
         )
 
-    # business days needs holidays
     if daycount == Daycount.BUS_252:
-        return yearfrac_fn(start, ends, hols)
+        return yearfrac_fn(starts, ends, hols)
 
-    return yearfrac_fn(start, ends)
+    return yearfrac_fn(starts, ends)
 
 
 SCALAR_DAYCOUNT_FN_MAP = {

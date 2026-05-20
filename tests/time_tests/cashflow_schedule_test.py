@@ -216,12 +216,21 @@ def test_base_first_accrual_yearfrac(base):
     assert base.accrual_yearfracs[0] == pytest.approx(89 / 360)
 
 
-def test_base_accrual_yearfracs_equal_payment_yearfracs_when_no_accrual_dates_passed(
-    base,
-):
-    # When accrual_end_dates is not supplied it defaults to payment_dates,
-    # so both yearfrac arrays must be identical.
-    np.testing.assert_array_equal(base.accrual_yearfracs, base.payment_yearfracs)
+def test_base_accrual_yearfracs_are_period_by_period_when_no_accrual_dates_passed(base):
+    # When accrual_end_dates defaults to payment_dates, accrual_yearfracs are
+    # still computed period-by-period, so only index 0 matches payment_yearfracs.
+    assert base.accrual_yearfracs[0] == pytest.approx(base.payment_yearfracs[0])
+    assert not np.allclose(base.accrual_yearfracs, base.payment_yearfracs)
+
+
+def test_base_accrual_yearfracs_sum_approximates_total_payment_yearfrac(base):
+    # The sum of period-by-period fracs should approximate the cumulative
+    # yearfrac from start_date to the final payment date.
+    np.testing.assert_allclose(
+        base.accrual_yearfracs.sum(),
+        base.payment_yearfracs[-1],
+        rtol=1e-10,
+    )
 
 
 def test_base_accrual_yearfracs_differ_from_payment_yearfracs_when_dates_differ(
@@ -452,6 +461,9 @@ def test_dateroll_property(periodic):
 # PeriodicCashFlowSchedule — year fractions
 # ===========================================================================
 
+# accrual_yearfracs are period-by-period (start of period to end of period).
+# payment_yearfracs are cumulative from start_date to each payment date.
+
 
 def test_periodic_payment_yearfracs_length(periodic):
     assert len(periodic.payment_yearfracs) == 4
@@ -462,51 +474,66 @@ def test_periodic_accrual_yearfracs_length(periodic):
 
 
 def test_periodic_first_payment_yearfrac(periodic):
-    # Payment date equals accrual end here (no lag, weekday), so same as accrual.
-    # 2026-01-01 to 2026-03-31 = 89 days / 360
+    # Cumulative: 2026-01-01 to 2026-03-31 = 89 days / 360
     assert periodic.payment_yearfracs[0] == pytest.approx(89 / 360)
 
 
 def test_periodic_first_accrual_yearfrac(periodic):
-    # 2026-01-01 to 2026-03-31 = 89 days / 360
+    # Period 0: 2026-01-01 to 2026-03-31 = 89 days / 360
     assert periodic.accrual_yearfracs[0] == pytest.approx(89 / 360)
 
 
-def test_periodic_accrual_yearfracs_equal_payment_yearfracs_when_no_lag(periodic):
-    # With lag=0 and weekday accrual ends, payment dates == accrual end dates,
-    # so both yearfrac arrays must be identical.
-    np.testing.assert_array_equal(
-        periodic.accrual_yearfracs, periodic.payment_yearfracs
-    )
+def test_periodic_second_accrual_yearfrac(periodic):
+    # Period 1: 2026-03-31 to 2026-06-30 = 91 days / 360
+    assert periodic.accrual_yearfracs[1] == pytest.approx(91 / 360)
 
 
-def test_periodic_accrual_yearfracs_differ_from_payment_yearfracs_with_lag(
-    periodic_with_lag,
+def test_periodic_third_accrual_yearfrac(periodic):
+    # Period 2: 2026-06-30 to 2026-09-30 = 92 days / 360
+    assert periodic.accrual_yearfracs[2] == pytest.approx(92 / 360)
+
+
+def test_periodic_fourth_accrual_yearfrac(periodic):
+    # Period 3: 2026-09-30 to 2026-12-31 = 92 days / 360
+    assert periodic.accrual_yearfracs[3] == pytest.approx(92 / 360)
+
+
+def test_periodic_accrual_yearfracs_are_not_cumulative(periodic):
+    # Period-by-period fracs should not grow monotonically from start_date.
+    # The second period (91/360) is larger than the first (89/360) but smaller
+    # than a cumulative 2026-01-01 to 2026-06-30 fraction (180/360 = 0.5).
+    assert periodic.accrual_yearfracs[1] == pytest.approx(91 / 360)
+    assert periodic.accrual_yearfracs[1] < 180 / 360
+
+
+def test_periodic_accrual_yearfracs_first_equals_first_payment_yearfrac(periodic):
+    # Index 0 of both arrays shares the same start (start_date) and end
+    # (first accrual end = first payment date at lag=0), so they must match.
+    assert periodic.accrual_yearfracs[0] == pytest.approx(periodic.payment_yearfracs[0])
+
+
+def test_periodic_accrual_yearfracs_diverge_from_payment_yearfracs_beyond_index_0(
+    periodic,
 ):
-    # Payment dates are pushed past accrual ends by the lag, so payment
-    # yearfracs must be strictly larger than accrual yearfracs for every period.
-    assert all(
-        p > a
-        for p, a in zip(
-            periodic_with_lag.payment_yearfracs, periodic_with_lag.accrual_yearfracs
-        )
-    )
+    # Beyond index 0 accrual yearfracs are period-by-period while payment
+    # yearfracs are cumulative, so they must differ.
+    assert not np.allclose(periodic.accrual_yearfracs, periodic.payment_yearfracs)
 
 
 def test_periodic_accrual_yearfracs_use_accrual_dates_not_payment_dates(
     periodic_with_lag,
 ):
     """
-    Accrual yearfracs must be computed from accrual_end_dates. If payment_dates
-    were used instead, the Q4 2027 fraction would bleed into 2028 and differ
-    measurably from the raw 89-day Q1 figure.
+    Accrual yearfracs must be period-by-period over accrual_end_dates, not
+    payment_dates. If payment_dates were used, the Q4 2027 period start would
+    be 2027-10-04 instead of 2027-09-30, producing a measurably different fraction.
     """
-    # Q1 2027: 2027-01-01 to 2027-03-31 = 89 days / 360
-    assert periodic_with_lag.accrual_yearfracs[0] == pytest.approx(89 / 360)
+    # Period 3: 2027-09-30 to 2027-12-31 = 92 days / 360
+    assert periodic_with_lag.accrual_yearfracs[3] == pytest.approx(92 / 360)
 
 
 def test_periodic_payment_yearfracs_reflect_lagged_dates(periodic_with_lag):
-    # Q1 2027: 2027-01-01 to 2027-04-02 (lagged payment) = 91 days / 360
+    # Cumulative: 2027-01-01 to 2027-04-02 (lagged payment date) = 91 days / 360
     assert periodic_with_lag.payment_yearfracs[0] == pytest.approx(91 / 360)
 
 
