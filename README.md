@@ -40,4 +40,7 @@ graph TD
 - [x] FX Curve
 - [x] IR Curve
 - [x] FX Forward Model
-- [ ] Price & Risk
+- [x] Price & Risk — DCF discounting (single and multi-currency)
+- [ ] IRS Instruments (`IRFixedLeg`, `IRFloatLeg`)
+- [ ] IRS Model
+- [ ] Options (Greeks via bump-and-reprice)

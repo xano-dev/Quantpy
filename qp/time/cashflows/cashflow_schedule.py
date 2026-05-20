@@ -7,7 +7,7 @@ from calendar import monthrange
 
 from qp.time.daycount import Daycount, yearfrac
 from qp.time.dateroll import Dateroll, roll_day
-from qp.utils.maps.frequencies import FREQUENCY_MAP
+from qp.utils.maps.frequencies import FREQUENCY_MAP, Frequency
 from qp.utils.maps.currencies import Currency
 
 
@@ -130,7 +130,7 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
     Args:
         start_date: Accrual start date (exclusive).
         end_date: Final payment / accrual end date (inclusive).
-        frequency: Payment frequency - `"monthly"`, `"quarterly"`, `"semiannual"`, or `"annual"`.
+        frequency: Payment frequency. One of ``Frequency.MONTHLY``, ``Frequency.QUARTERLY``, ``Frequency.SEMI_ANNUAL``, or ``Frequency.ANNUAL``.
         currency: Currency of the cashflows.
         daycount: Daycount convention.
         dateroll: Business-day adjustment convention.
@@ -160,7 +160,7 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
         self,
         start_date: dt.date,
         end_date: dt.date,
-        frequency: Literal["monthly", "quarterly", "semiannual", "annual"],
+        frequency: Frequency,
         currency: Currency,
         daycount: Daycount,
         dateroll: Dateroll,

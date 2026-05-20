@@ -17,4 +17,8 @@ class Currency(StrEnum):
 
     @classmethod
     def _missing_(cls, value):
-        return cls(value.upper())
+        for member in cls:
+            if value.upper() == member.value:
+                return member
+
+        return None
