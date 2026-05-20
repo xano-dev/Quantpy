@@ -1,4 +1,4 @@
-from qp.utils.maps.currencies import Currency
+from qp.utils.maps.currency.currencies import Currency
 
 HOL_MAP = {
     Currency.USD: "US",

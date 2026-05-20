@@ -1,9 +1,10 @@
 import datetime as dt
 
-from qp.utils.maps.currencies import Currency
-from qp.utils.maps.frequencies import Frequency
-from qp.utils.maps.floating_indexes import FloatingIndex
-from qp.utils.maps.payreceive import PayReceive
+from qp.utils.maps.currency.currencies import Currency
+from qp.utils.maps.general.frequencies import Frequency
+from qp.utils.maps.rates.floating_indexes import FloatingIndex
+from qp.utils.maps.general.payreceive import PayReceive
+from qp.utils.maps.rates.leg_type import LegType
 from qp.time.daycount import Daycount
 from qp.time.dateroll import Dateroll
 
@@ -24,6 +25,7 @@ class IRBaseLeg:
         dateroll: Business-day adjustment convention.
         pay_receive: Whether the leg is paid or received.
         payment_lag: Number of business days between accrual end and payment date.
+        dayroll: Roll day of the contract - defaults to the end date's day
     """
 
     def __init__(
@@ -38,6 +40,7 @@ class IRBaseLeg:
         dateroll: Dateroll,
         pay_receive: PayReceive,
         payment_lag: int = 0,
+        dayroll: int = None,
     ):
         self._currency = currency
         self._notional = notional
@@ -49,6 +52,7 @@ class IRBaseLeg:
         self._dateroll = dateroll
         self._pay_receive = pay_receive
         self._payment_lag = payment_lag
+        self._dayroll = dayroll if dayroll is not None else end_date.day
 
     @property
     def currency(self):
@@ -90,6 +94,10 @@ class IRBaseLeg:
     def payment_lag(self):
         return self._payment_lag
 
+    @property
+    def dayroll(self):
+        return self._dayroll
+
 
 class IRFixedLeg(IRBaseLeg):
     """Fixed leg of an interest rate swap.
@@ -114,6 +122,7 @@ class IRFixedLeg(IRBaseLeg):
         pay_receive: PayReceive,
         fixed_rate: float,
         payment_lag: int = 0,
+        dayroll: int = None,
     ):
         super().__init__(
             currency,
@@ -126,12 +135,18 @@ class IRFixedLeg(IRBaseLeg):
             dateroll,
             pay_receive,
             payment_lag,
+            dayroll,
         )
         self._fixed_rate = fixed_rate
+        self._leg_type = LegType.FIXED
 
     @property
     def fixed_rate(self):
         return self._fixed_rate
+
+    @property
+    def leg_type(self):
+        return self._leg_type
 
 
 class IRFloatingLeg(IRBaseLeg):
@@ -143,7 +158,7 @@ class IRFloatingLeg(IRBaseLeg):
     Args:
         index: Floating rate index (e.g. `FloatingIndex.SOFR`).
         spread: Spread over the index as a decimal. Defaults to `0.0`.
-        lookback: Optional lookback for OIS (Overnight Index Swaps)
+        lookback: Lookback for OIS (Overnight Index Swaps) - defaults to 30
     """
 
     def __init__(
@@ -160,7 +175,9 @@ class IRFloatingLeg(IRBaseLeg):
         index: FloatingIndex,
         spread: float = 0.0,
         payment_lag: int = 0,
-        lookback: int | None = None,
+        dayroll: int = None,
+        leg_type: LegType.FLOAT | LegType.OIS = LegType.FLOAT,
+        lookback: int = 30,
     ):
         super().__init__(
             currency,
@@ -173,9 +190,11 @@ class IRFloatingLeg(IRBaseLeg):
             dateroll,
             pay_receive,
             payment_lag,
+            dayroll,
         )
         self._index = index
         self._spread = spread
+        self._leg_type = leg_type
         self._lookback = lookback
 
     @property
@@ -189,3 +208,29 @@ class IRFloatingLeg(IRBaseLeg):
     @property
     def lookback(self):
         return self._lookback
+
+    @property
+    def leg_type(self):
+        return self._leg_type
+
+
+class IRS:
+
+    def __init__(
+        self, leg_one: IRFixedLeg | IRFloatingLeg, leg_two: IRFixedLeg | IRFloatingLeg
+    ):
+        self.__leg_one = leg_one
+        self.__leg_two = leg_two
+        pass
+
+    @property
+    def leg_one(self):
+        return self.__leg_one
+
+    @property
+    def leg_two(self):
+        return self.__leg_two
+
+    @property
+    def legs(self):
+        return [self.__leg_one, self.__leg_two]

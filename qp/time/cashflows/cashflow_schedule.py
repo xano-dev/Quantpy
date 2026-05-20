@@ -6,9 +6,9 @@ import pandas as pd
 from calendar import monthrange
 
 from qp.time.daycount import Daycount, yearfrac
-from qp.time.dateroll import Dateroll, roll_day
-from qp.utils.maps.frequencies import FREQUENCY_MAP, Frequency
-from qp.utils.maps.currencies import Currency
+from qp.time.dateroll import Dateroll, roll_day, apply_payment_lag
+from qp.utils.maps.general.frequencies import FREQUENCY_MAP, Frequency
+from qp.utils.maps.currency.currencies import Currency
 
 
 class CashFlowSchedule:
@@ -26,6 +26,7 @@ class CashFlowSchedule:
         currency: Currency of the cashflows.
         daycount: Daycount convention used to compute year fractions.
         collateral_currency: Discount currency.  Defaults to `currency` when omitted.
+        accrual_end_dates: Ordered sequence of accrual end dates which may differ from payment dates - defaults to payment dates
 
     Raises:
         ValueError: If `cashflows` length does not match `payment_dates`.
@@ -48,6 +49,7 @@ class CashFlowSchedule:
         currency: Currency,
         daycount: Daycount,
         collateral_currency: Currency | None = None,
+        accrual_end_dates: list[dt.date] | np.ndarray | None = None,
     ):
         self._start_date = start_date
         self._payment_dates = np.array(payment_dates)
@@ -58,14 +60,29 @@ class CashFlowSchedule:
         self._collateral_currency = (
             collateral_currency if collateral_currency is not None else currency
         )
+        self._accrual_end_dates = (
+            np.array(accrual_end_dates)
+            if accrual_end_dates is not None
+            else self._payment_dates
+        )
 
-        if len(self._cashflows) != len(self._payment_dates):
+        if not (
+            len(self._cashflows)
+            == len(self._payment_dates)
+            == len(self._accrual_end_dates)
+        ):
             raise ValueError(
-                f"cashflows length {len(self._cashflows)} does not match "
-                f"number of payment dates {len(self._payment_dates)}"
+                f"mismatch between length of cashflows: {len(self._cashflows)},"
+                f"number of payment dates: {len(self._payment_dates)},"
+                f"and number of accrual end dates: {len(self._accrual_end_dates)}"
             )
 
-        self._yearfracs: np.ndarray = self._generate_yearfracs()
+        self._payment_yearfracs: np.ndarray = self._generate_yearfracs(
+            self._payment_dates
+        )
+        self._accrual_yearfracs: np.ndarray = self._generate_yearfracs(
+            self._accrual_end_dates
+        )
 
     @property
     def start_date(self):
@@ -92,23 +109,30 @@ class CashFlowSchedule:
         return self._payment_dates
 
     @property
-    def yearfracs(self):
-        return self._yearfracs
+    def accrual_end_dates(self):
+        return self._accrual_end_dates
+
+    @property
+    def payment_yearfracs(self):
+        return self._payment_yearfracs
+
+    @property
+    def accrual_yearfracs(self):
+        return self._accrual_yearfracs
 
     @property
     def collateral_currency(self):
         return self._collateral_currency
 
-    def _generate_yearfracs(self):
-        return yearfrac(
-            self._start_date, self._payment_dates, self._daycount, self._currency
-        )
+    def _generate_yearfracs(self, dates: np.ndarray):
+        return yearfrac(self._start_date, dates, self._daycount, self._currency)
 
     def to_dataframe(self):
         return pd.DataFrame(
             {
                 "Payment Date": self._payment_dates,
-                "DCF": self._yearfracs,
+                "Accrual Yearfrac": self._accrual_yearfracs,
+                "Payment Yearfrac": self._payment_yearfracs,
                 "Cashflow": self._cashflows,
             }
         )
@@ -135,6 +159,7 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
         daycount: Daycount convention.
         dateroll: Business-day adjustment convention.
         cashflows: Cashflow amount for each generated payment date.  Must match the number of dates produced by the schedule.
+            Defaults to None so it can be set after schedule generation.
         dayroll: Day-of-month anchor used when stepping backward.  Defaults to the day of `end_date`.
         collateral_currency: Discount currency.  Defaults to `currency`.
 
@@ -164,9 +189,10 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
         currency: Currency,
         daycount: Daycount,
         dateroll: Dateroll,
-        cashflows: list[float] | np.ndarray,
+        cashflows: list[float] | np.ndarray | None = None,
         dayroll: int | None = None,
         collateral_currency: Currency | None = None,
+        payment_lag: int = 0,
     ):
         if dayroll is not None and dayroll > 31:
             raise ValueError(f"Invalid dayroll: {dayroll}")
@@ -174,8 +200,14 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
         self._frequency = frequency
         self._dateroll = dateroll
         self._dayroll = end_date.day if dayroll is None else dayroll
+        self._payment_lag = payment_lag
 
-        payment_dates = self._generate_dates(start_date, end_date, currency)
+        if self._payment_lag < 0:
+            raise ValueError("Payment lag cannot be negative")
+
+        accrual_end_dates, payment_dates = self._generate_dates(
+            start_date, end_date, currency
+        )
 
         super().__init__(
             start_date=start_date,
@@ -184,6 +216,7 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
             currency=currency,
             daycount=daycount,
             collateral_currency=collateral_currency,
+            accrual_end_dates=accrual_end_dates,
         )
 
     @property
@@ -197,6 +230,13 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
     @property
     def dayroll(self):
         return self._dayroll
+
+    @property
+    def payment_lag(self):
+        return self._payment_lag
+
+    def set_cashflows(self, cashflows: list[float] | np.ndarray):
+        self._cashflows = np.array(cashflows)
 
     def _apply_dayroll(self, year: int, month: int) -> dt.date:
         max_day = monthrange(year, month)[1]
@@ -214,12 +254,31 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
         stepped = end_date - step
         step_date = self._apply_dayroll(stepped.year, stepped.month)
 
-        payment_dates: list[dt.date] = [end_date]
+        accrual_end_dates: list[dt.date] = [end_date]
+        payment_dates: list[dt.date] = [
+            apply_payment_lag(
+                roll_day(end_date, self._dateroll, currency),
+                self._payment_lag,
+                self._dateroll,
+                currency,
+            )
+        ]
 
         while step_date > start_date:
+            accrual_end_dates.append(step_date)
+
             rolled_date = roll_day(step_date, self._dateroll, currency)
-            payment_dates.append(rolled_date)
+
+            lagged_day = apply_payment_lag(
+                rolled_date,
+                self._payment_lag,
+                self._dateroll,
+                currency,
+            )
+
+            payment_dates.append(lagged_day)
+
             stepped = step_date - step
             step_date = self._apply_dayroll(stepped.year, stepped.month)
 
-        return np.sort(np.array(payment_dates))
+        return np.sort(np.array(accrual_end_dates)), np.sort(np.array(payment_dates))

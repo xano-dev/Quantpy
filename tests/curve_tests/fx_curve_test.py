@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch
 from qp.curves.fx_curve import FXCurve
 from qp.time.daycount import Daycount
-from qp.utils.maps.currencies import Currency
+from qp.utils.maps.currency.currencies import Currency
 from qp.utils.math.interpolation import InterpolationMethod
 
 AT_DATE = dt.date(2026, 5, 14)

@@ -1,7 +1,7 @@
 import datetime as dt
 
-from qp.utils.maps.buysell import BuySell
-from qp.utils.maps.currencies import Currency
+from qp.utils.maps.general.buysell import BuySell
+from qp.utils.maps.currency.currencies import Currency
 
 
 class FXForward:

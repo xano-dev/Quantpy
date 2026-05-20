@@ -1,4 +1,4 @@
-from qp.utils.maps.currencies import Currency
+from qp.utils.maps.currency.currencies import Currency
 from qp.time.daycount import Daycount
 
 CURRENCY_DAYCOUNT: dict[Currency, Daycount] = {

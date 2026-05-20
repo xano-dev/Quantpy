@@ -1,4 +1,4 @@
-from qp.utils.maps.currencies import Currency
+from qp.utils.maps.currency.currencies import Currency
 import json
 import datetime as dt
 from qp.time.daycount import Daycount

@@ -1,6 +1,6 @@
 import datetime as dt
 from dataclasses import dataclass
-from qp.utils.maps.currencies import Currency
+from qp.utils.maps.currency.currencies import Currency
 
 
 @dataclass

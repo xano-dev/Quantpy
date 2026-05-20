@@ -1,7 +1,8 @@
 import datetime as dt
+import numpy as np
 from enum import StrEnum
 from qp.time.holiday_helper import get_holidays
-from qp.utils.maps.currencies import Currency
+from qp.utils.maps.currency.currencies import Currency
 
 
 class Dateroll(StrEnum):
@@ -82,9 +83,42 @@ def roll_day(date: dt.date, dateroll: Dateroll, currency: Currency = None) -> dt
     return dateroll_fn(date, hols)
 
 
+def apply_payment_lag(
+    date: dt.date, lag: int, dateroll: Dateroll = None, currency: Currency = None
+):
+    hols = (
+        []
+        if currency is None
+        else [
+            h.isoformat()
+            for h in get_holidays(currency, years=(date.year, date.year + 1))
+        ]
+    )
+
+    if dateroll is not None:
+        np_lagged_date = np.busday_offset(
+            date.isoformat(), lag, roll=NP_DATEROLL_MAP[dateroll], holidays=hols
+        )
+    else:
+        np_lagged_date = np.busday_offset(date.isoformat(), lag, holidays=hols)
+
+    timestamp = (
+        (np_lagged_date - np.datetime64("1970-01-01T00:00:00")) / np.timedelta64(1, "s")
+    ).item()
+
+    return dt.datetime.fromtimestamp(timestamp).date()
+
+
 DATEROLL_FN_MAP = {
     Dateroll.FOLLOWING: compute_following,
     Dateroll.PRECEDING: compute_preceding,
     Dateroll.MODIFIED_FOLLOWING: compute_modified_following,
     Dateroll.MODIFIED_PRECEDING: compute_modified_preceding,
+}
+
+NP_DATEROLL_MAP = {
+    Dateroll.FOLLOWING: "following",
+    Dateroll.PRECEDING: "preceding",
+    Dateroll.MODIFIED_FOLLOWING: "modifiedfollowing",
+    Dateroll.MODIFIED_PRECEDING: "modifiedpreceding",
 }

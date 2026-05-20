@@ -1,9 +1,9 @@
 from qp.instruments.fx.fx_forward import FXForward
 from qp.curves.fx_curve import FXCurve
 from qp.time.cashflows.cashflow_schedule import CashFlowSchedule
-from qp.utils.maps.currencies import Currency
-from qp.utils.maps.buysell import BuySell
-from qp.utils.maps.currency_daycount import CURRENCY_DAYCOUNT
+from qp.utils.maps.currency.currencies import Currency
+from qp.utils.maps.general.buysell import BuySell
+from qp.utils.maps.currency.currency_daycount import CURRENCY_DAYCOUNT
 
 import datetime as dt
 

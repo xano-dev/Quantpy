@@ -4,7 +4,7 @@ import pytest
 
 from qp.instruments.fx.fx_forward import FXForward
 from qp.models.fx.fx_forward_model import FXForwardModel
-from qp.utils.maps.currencies import Currency
+from qp.utils.maps.currency.currencies import Currency
 
 VALUATION_DATE = dt.date(2026, 5, 10)
 MATURITY_DATE = dt.date(2028, 5, 10)

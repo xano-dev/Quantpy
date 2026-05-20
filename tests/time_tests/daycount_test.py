@@ -2,7 +2,7 @@ import datetime as dt
 import numpy as np
 import pytest
 from qp.time.daycount import yearfrac, Daycount
-from qp.utils.maps.currencies import Currency
+from qp.utils.maps.currency.currencies import Currency
 
 # ---- ACT/360 ----
 

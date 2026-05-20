@@ -1,8 +1,8 @@
 import datetime as dt
 import pytest
 from qp.instruments.fx.fx_forward import FXForward
-from qp.utils.maps.currencies import Currency
-from qp.utils.maps.buysell import BuySell
+from qp.utils.maps.currency.currencies import Currency
+from qp.utils.maps.general.buysell import BuySell
 
 BUY_SELL_BUY = BuySell.BUY
 BUY_SELL_SELL = BuySell.SELL
