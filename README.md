@@ -44,5 +44,7 @@ graph TD
 - [x] IRS Instruments (`IRBaseLeg`, `IRFixedLeg`, `IRFloatingLeg`) — pay/receive, payment lag, OIS lookback
 - [x] Utils — `FloatingIndex`, `PayReceive`, `apply_payment_lag` with holiday-aware business day offset
 - [x] `yearfrac` vectorised start dates — scalar, vectorised end, and paired start/end arrays all supported
-- [ ] IRS Model — fixed leg (rate × notional × period yearfrac), floating leg (forward rate + spread × notional × period yearfrac)
+- [x] IRS Model — fixed leg (rate × notional × period yearfrac), floating leg (simply-compounded forward rates via DF ratio, OIS historic compounding, spot/seasoned dispatch)
+- [x] `date_utils.py` — historic OIS fixing date generation
+- [ ] End-to-end DCF test covering IRS
 - [ ] Options (Greeks via bump-and-reprice)
