@@ -123,7 +123,7 @@ PV (discounted): USD -47,724.19
 - [x] IRS Model - fixed leg, floating/OIS leg (forward rates via DF ratio, OIS compounding); live and seasoned swaps; single and cross-currency
 
 ### `price_and_risk/`
-- [x] DCF engine - per-schedule FX curve assignment with currency validation; single-currency, cross-currency, and CCIRS
+- [x] DCF engine - per-schedule FX curve assignment with currency validation; single-currency and cross-currency
 
 ### Up next
 - [ ] Vanilla options - IR caps/floors and FX vanilla options
