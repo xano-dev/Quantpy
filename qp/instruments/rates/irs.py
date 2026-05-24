@@ -104,7 +104,7 @@ class IRFixedLeg(IRBaseLeg):
     """Fixed leg of an interest rate swap.
 
     Pays a fixed coupon at each payment date, computed from `fixed_rate`
-    applied to the notional over each accrual period. Extends :class:`IRBaseLeg`.
+    applied to the notional over each accrual period. Extends `IRBaseLeg`.
 
     Args:
         fixed_rate: Fixed coupon rate as a decimal (e.g. `0.05` for 5%).
@@ -154,7 +154,7 @@ class IRFloatingLeg(IRBaseLeg):
     """Floating leg of an interest rate swap.
 
     Pays a floating coupon at each payment date, referencing `index`
-    plus an optional `spread`. Extends :class:`IRBaseLeg`.
+    plus an optional `spread`. Extends `IRBaseLeg`.
 
     Args:
         index: Floating rate index (e.g. `FloatingIndex.SOFR`).

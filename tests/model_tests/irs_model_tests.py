@@ -56,6 +56,8 @@ def make_ir_curve(discount_factors):
     """Mock IRCurve whose get_discount_factors returns the given array."""
     curve = MagicMock()
     curve.get_discount_factors.return_value = np.array(discount_factors)
+    curve.at_date = VALUATION_DATE
+    curve.daycount = Daycount.ACT_360
     return curve
 
 

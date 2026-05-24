@@ -168,7 +168,7 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
     Args:
         start_date: Accrual start date (exclusive).
         end_date: Final payment / accrual end date (inclusive).
-        frequency: Payment frequency. One of ``Frequency.MONTHLY``, ``Frequency.QUARTERLY``, ``Frequency.SEMI_ANNUAL``, or ``Frequency.ANNUAL``.
+        frequency: Payment frequency. One of Frequency.MONTHLY, Frequency.QUARTERLY, Frequency.SEMI_ANNUAL, or Frequency.ANNUAL.
         currency: Currency of the cashflows.
         daycount: Daycount convention.
         dateroll: Business-day adjustment convention.

@@ -1,9 +1,8 @@
 from qp.instruments.rates.irs import IRS, IRFixedLeg, IRFloatingLeg
 from qp.curves.ir_curve import IRCurve
 from qp.time.cashflows.cashflow_schedule import PeriodicCashFlowSchedule
-from qp.utils.maps.currency.currencies import Currency
+from qp.time.date.daycount import yearfrac
 from qp.utils.maps.general.payreceive import PayReceive
-from qp.utils.maps.currency.currency_daycount import CURRENCY_DAYCOUNT
 from qp.utils.maps.rates.leg_type import LegType
 from qp.time.date.date_utils import compute_historic_ois_fixing_dates
 
@@ -17,7 +16,7 @@ class IRSModel:
     Pricing model for interest rate swaps.
 
     Supports fixed, floating (IBOR), and OIS legs. Computes undiscounted cashflow
-    schedules for each leg of an :class:`IRS`.
+    schedules for each leg of an `IRS`.
 
     Parameters
     ----------
@@ -29,11 +28,11 @@ class IRSModel:
         Discount/projection curve for leg two. Required if leg two is floating or OIS.
     leg_one_historic_fixings : float or list[float] or np.ndarray, optional
         Historic fixing(s) for leg one when the valuation date is past the leg start
-        date. Pass a scalar ``float`` for a floating leg, or an array of daily fixings
+        date. Pass a scalar float for a floating leg, or an array of daily fixings
         for an OIS leg.
     leg_two_historic_fixings : float or list[float] or np.ndarray, optional
         Historic fixing(s) for leg two. Same conventions as
-        ``leg_one_historic_fixings``.
+        leg_one_historic_fixings.
     """
 
     def __init__(
@@ -66,7 +65,7 @@ class IRSModel:
 
     def _validate(self, irs: IRS):
         """
-        Validates that the model has sufficient inputs to price ``irs``.
+        Validates that the model has sufficient inputs to price irs.
 
         Parameters
         ----------
@@ -117,7 +116,7 @@ class IRSModel:
 
     def _compute_schedule(self, leg: IRFixedLeg | IRFloatingLeg):
         """
-        Builds the :class:`PeriodicCashFlowSchedule` for ``leg``.
+        Builds the `PeriodicCashFlowSchedule` for leg.
 
         Parameters
         ----------
@@ -152,7 +151,7 @@ class IRSModel:
         Returns
         -------
         PeriodicCashFlowSchedule
-            Schedule with cashflows set to ``accrual_yearfrac * notional * fixed_rate``,
+            Schedule with cashflows set to accrual_yearfrac * notional * fixed_rate,
             signed by pay/receive convention.
         """
         schedule: PeriodicCashFlowSchedule = self._compute_schedule(leg)
@@ -174,16 +173,16 @@ class IRSModel:
         fixings: float | np.ndarray,
     ):
         """
-        Derives the effective historic fixing rate for the first period of ``leg``.
+        Derives the effective historic fixing rate for the first period of leg.
 
-        For a ``FLOAT`` leg, the scalar fixing is returned directly. For an ``OIS``
+        For a FLOAT leg, the scalar fixing is returned directly. For an OIS
         leg, daily fixings are compounded over the lookback period and annualised.
 
         Parameters
         ----------
         leg : IRFloatingLeg
         fixings : float or np.ndarray
-            Scalar rate for ``FLOAT`` legs; array of daily overnight rates for ``OIS``
+            Scalar rate for FLOAT legs; array of daily overnight rates for OIS
             legs.
 
         Returns
@@ -199,7 +198,7 @@ class IRSModel:
             historic_fixing = fixings
 
         elif leg.leg_type == LegType.OIS:
-            daycount_denom = int(CURRENCY_DAYCOUNT[leg.currency].split("/")[1])
+            daycount_denom = int(leg.daycount.split("/")[1])
             fixing_dates = compute_historic_ois_fixing_dates(
                 leg.start_date, leg.lookback, leg.currency
             )
@@ -241,7 +240,9 @@ class IRSModel:
 
         schedule: PeriodicCashFlowSchedule = self._compute_schedule(leg)
 
-        dfs = curve.get_discount_factors(schedule.accrual_yearfracs)
+        dfs = curve.get_discount_factors(
+            yearfrac(curve.at_date, schedule.accrual_end_dates, curve.daycount)
+        )
         dfs_offset = np.ones(dfs.size)
         dfs_offset[1:] = dfs[:-1]
 
@@ -262,14 +263,14 @@ class IRSModel:
         return schedule
 
     def price(self, irs: IRS) -> list[PeriodicCashFlowSchedule]:
-        """Computes undiscounted cashflow schedules for both legs of ``irs``.
+        """Computes undiscounted cashflow schedules for both legs of irs.
 
         Args:
             irs: The swap to price.
 
         Returns:
             list[PeriodicCashFlowSchedule]: A two-element list
-            ``[leg_one_schedule, leg_two_schedule]``.
+            [leg_one_schedule, leg_two_schedule].
 
         Raises:
             ValueError: If validation fails. See :meth:`_validate`.
