@@ -1,12 +1,13 @@
 import datetime as dt
+from typing import Literal
 
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.frequencies import Frequency
 from qp.utils.maps.rates.floating_indexes import FloatingIndex
 from qp.utils.maps.general.payreceive import PayReceive
 from qp.utils.maps.rates.leg_type import LegType
-from qp.time.daycount import Daycount
-from qp.time.dateroll import Dateroll
+from qp.time.date.daycount import Daycount
+from qp.time.date.dateroll import Dateroll
 
 
 class IRBaseLeg:
@@ -176,7 +177,7 @@ class IRFloatingLeg(IRBaseLeg):
         spread: float = 0.0,
         payment_lag: int = 0,
         dayroll: int = None,
-        leg_type: LegType.FLOAT | LegType.OIS = LegType.FLOAT,
+        leg_type: Literal[LegType.FLOAT, LegType.OIS] = LegType.FLOAT,
         lookback: int = 30,
     ):
         super().__init__(

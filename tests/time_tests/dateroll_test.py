@@ -1,6 +1,6 @@
 import pytest
 import datetime as dt
-from qp.time.dateroll import roll_day, Dateroll
+from qp.time.date.dateroll import roll_day, Dateroll
 
 # --- Following ---
 

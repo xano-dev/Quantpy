@@ -4,7 +4,7 @@ import pytest
 import warnings
 from unittest.mock import patch
 from qp.curves.ir_curve import IRCurve
-from qp.time.daycount import Daycount
+from qp.time.date.daycount import Daycount
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.math.interpolation import InterpolationMethod
 

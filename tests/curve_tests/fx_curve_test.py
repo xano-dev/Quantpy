@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from unittest.mock import patch
 from qp.curves.fx_curve import FXCurve
-from qp.time.daycount import Daycount
+from qp.time.date.daycount import Daycount
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.math.interpolation import InterpolationMethod
 

@@ -1,7 +1,7 @@
 from qp.utils.maps.currency.currencies import Currency
 import json
 import datetime as dt
-from qp.time.daycount import Daycount
+from qp.time.date.daycount import Daycount
 
 FX_CURVES_PATH = r"qp\data\fx_curves\fx_curves.json"
 

@@ -1,5 +1,5 @@
 from qp.utils.maps.currency.currencies import Currency
-from qp.time.daycount import Daycount
+from qp.time.date.daycount import Daycount
 
 CURRENCY_DAYCOUNT: dict[Currency, Daycount] = {
     Currency.USD: Daycount.ACT_360,

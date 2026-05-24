@@ -1,12 +1,11 @@
 from dateutil.relativedelta import relativedelta
 import datetime as dt
-from typing import Literal
 import numpy as np
 import pandas as pd
 from calendar import monthrange
 
-from qp.time.daycount import Daycount, yearfrac
-from qp.time.dateroll import Dateroll, roll_day, apply_payment_lag
+from qp.time.date.daycount import Daycount, yearfrac
+from qp.time.date.dateroll import Dateroll, roll_day, apply_payment_lag
 from qp.utils.maps.general.frequencies import FREQUENCY_MAP, Frequency
 from qp.utils.maps.currency.currencies import Currency
 
@@ -80,8 +79,11 @@ class CashFlowSchedule:
         self._payment_yearfracs: np.ndarray = self._generate_yearfracs(
             self._payment_dates
         )
-        self._accrual_yearfracs: np.ndarray = self._generate_periodic_yearfracs(
+        self._accrual_yearfracs: np.ndarray = self._generate_yearfracs(
             self._accrual_end_dates
+        )
+        self._accrual_yearfracs_periodic: np.ndarray = (
+            self._generate_periodic_yearfracs(self._accrual_end_dates)
         )
 
     @property
@@ -123,6 +125,10 @@ class CashFlowSchedule:
     @property
     def collateral_currency(self):
         return self._collateral_currency
+
+    @property
+    def accrual_yearfracs_periodic(self):
+        return self._accrual_yearfracs_periodic
 
     def _generate_yearfracs(self, dates: np.ndarray):
         return yearfrac(self._start_date, dates, self._daycount, self._currency)
@@ -220,7 +226,9 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
         super().__init__(
             start_date=start_date,
             payment_dates=payment_dates,
-            cashflows=cashflows,
+            cashflows=(
+                np.zeros(payment_dates.size) if cashflows is None else cashflows
+            ),
             currency=currency,
             daycount=daycount,
             collateral_currency=collateral_currency,

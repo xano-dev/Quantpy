@@ -1,5 +1,5 @@
 from qp.utils.math.interpolation import InterpolationMethod, Interpolator
-from qp.time.daycount import Daycount, yearfrac
+from qp.time.date.daycount import Daycount, yearfrac
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.bootstrapper.bootstrap import bootstrap
 import datetime as dt

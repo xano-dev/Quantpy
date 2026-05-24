@@ -8,7 +8,7 @@ class PayReceive(StrEnum):
     @classmethod
     def _missing_(cls, value):
         for member in cls:
-            if value.lower() == member.value:
+            if value.upper() == member.value:
                 return member
 
         return None

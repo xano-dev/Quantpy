@@ -5,34 +5,130 @@ from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.payreceive import PayReceive
 from qp.utils.maps.currency.currency_daycount import CURRENCY_DAYCOUNT
 from qp.utils.maps.rates.leg_type import LegType
+from qp.time.date.date_utils import compute_historic_ois_fixing_dates
+
+import datetime as dt
 
 import numpy as np
 
 
 class IRSModel:
+    """
+    Pricing model for interest rate swaps.
+
+    Supports fixed, floating (IBOR), and OIS legs. Computes undiscounted cashflow
+    schedules for each leg of an :class:`IRS`.
+
+    Parameters
+    ----------
+    valuation_date : dt.date
+        The date as of which the swap is being valued.
+    leg_one_curve : IRCurve, optional
+        Discount/projection curve for leg one. Required if leg one is floating or OIS.
+    leg_two_curve : IRCurve, optional
+        Discount/projection curve for leg two. Required if leg two is floating or OIS.
+    leg_one_historic_fixings : float or list[float] or np.ndarray, optional
+        Historic fixing(s) for leg one when the valuation date is past the leg start
+        date. Pass a scalar ``float`` for a floating leg, or an array of daily fixings
+        for an OIS leg.
+    leg_two_historic_fixings : float or list[float] or np.ndarray, optional
+        Historic fixing(s) for leg two. Same conventions as
+        ``leg_one_historic_fixings``.
+    """
 
     def __init__(
         self,
-        irs: IRS,
-        irs_leg_one_curve: IRCurve | None = None,
-        irs_leg_two_curve: IRCurve | None = None,
+        valuation_date: dt.date,
+        leg_one_curve: IRCurve | None = None,
+        leg_two_curve: IRCurve | None = None,
+        leg_one_historic_fixings: float | list[float] | np.ndarray | None = None,
+        leg_two_historic_fixings: float | list[float] | np.ndarray | None = None,
     ):
-        self._irs = irs
-        self._irs_leg_one_curve = irs_leg_one_curve
-        self._irs_leg_two_curve = irs_leg_two_curve
-        self._validate()
+        self._valuation_date = valuation_date
+        self._leg_one_curve = leg_one_curve
+        self._leg_two_curve = leg_two_curve
+        self._leg_one_historic_fixings = (
+            leg_one_historic_fixings
+            if (
+                isinstance(leg_one_historic_fixings, float)
+                or leg_one_historic_fixings is None
+            )
+            else np.array(leg_one_historic_fixings)
+        )
+        self._leg_two_historic_fixings = (
+            leg_two_historic_fixings
+            if (
+                isinstance(leg_two_historic_fixings, float)
+                or leg_two_historic_fixings is None
+            )
+            else np.array(leg_two_historic_fixings)
+        )
 
-    def _validate(self):
-        for leg, curve in zip(
-            self._irs.legs, [self._irs_leg_one_curve, self._irs_leg_two_curve]
-        ):
+    def _validate(self, irs: IRS):
+        """
+        Validates that the model has sufficient inputs to price ``irs``.
+
+        Parameters
+        ----------
+        irs : IRS
+            The swap to validate against.
+
+        Raises
+        ------
+        ValueError
+            If a floating or OIS leg has no associated curve.
+        ValueError
+            If the valuation date is past a leg's start date and no historic fixings
+            are provided, or if the fixings are of the wrong type for the leg type.
+        """
+        for leg, curve in zip(irs.legs, [self._leg_one_curve, self._leg_two_curve]):
             if leg.leg_type != LegType.FIXED:
                 if curve is None:
                     raise ValueError("Must provide IRCurve for floating and OIS legs")
 
-    def _compute_fixed_leg(self, leg: IRFixedLeg):
+        for leg, historic_fixing in zip(
+            irs.legs,
+            [self._leg_one_historic_fixings, self._leg_two_historic_fixings],
+        ):
 
-        schedule: PeriodicCashFlowSchedule = PeriodicCashFlowSchedule(
+            if self._valuation_date > leg.start_date:
+                if historic_fixing is None:
+                    raise ValueError(
+                        "Must provide historic fixings when start date is at or before valuation date"
+                    )
+
+                if leg.leg_type == LegType.FLOAT:
+                    if not isinstance(historic_fixing, float):
+                        raise ValueError(
+                            "Must provide a single scalar historic fixing for a floating leg"
+                        )
+
+                if leg.leg_type == LegType.OIS:
+
+                    if not isinstance(historic_fixing, np.ndarray):
+                        raise ValueError(
+                            "Must provide a list of fixings for an OIS swap. If lookback is one, please provide as `[rate]`"
+                        )
+
+                    if len(historic_fixing) != leg.lookback:
+                        raise ValueError(
+                            "Number of historic fixings must match lookback period for an OIS"
+                        )
+
+    def _compute_schedule(self, leg: IRFixedLeg | IRFloatingLeg):
+        """
+        Builds the :class:`PeriodicCashFlowSchedule` for ``leg``.
+
+        Parameters
+        ----------
+        leg : IRFixedLeg or IRFloatingLeg
+            The leg whose schedule is to be generated.
+
+        Returns
+        -------
+        PeriodicCashFlowSchedule
+        """
+        return PeriodicCashFlowSchedule(
             leg.start_date,
             leg.end_date,
             leg.payment_frequency,
@@ -42,16 +138,187 @@ class IRSModel:
             None,
             leg.dayroll,
             leg.collateral_currency,
+            leg.payment_lag,
         )
 
-        cashflows = schedule.accrual_yearfracs * leg.notional * leg.fixed_rate
+    def _compute_fixed_leg(self, leg: IRFixedLeg):
+        """
+        Computes cashflows for a fixed leg.
+
+        Parameters
+        ----------
+        leg : IRFixedLeg
+
+        Returns
+        -------
+        PeriodicCashFlowSchedule
+            Schedule with cashflows set to ``accrual_yearfrac * notional * fixed_rate``,
+            signed by pay/receive convention.
+        """
+        schedule: PeriodicCashFlowSchedule = self._compute_schedule(leg)
+
+        cashflows = (
+            schedule.accrual_yearfracs_periodic
+            * leg.notional
+            * leg.fixed_rate
+            * (1 if leg.pay_receive == PayReceive.RECEIVE else -1)
+        )
 
         schedule.set_cashflows(cashflows)
 
         return schedule
 
-    def _compute_float_leg(self):
-        pass
+    def _compute_historic_fixing(
+        self,
+        leg: IRFloatingLeg,
+        fixings: float | np.ndarray,
+    ):
+        """
+        Derives the effective historic fixing rate for the first period of ``leg``.
 
-    def _compute_ois_leg(self):
-        pass
+        For a ``FLOAT`` leg, the scalar fixing is returned directly. For an ``OIS``
+        leg, daily fixings are compounded over the lookback period and annualised.
+
+        Parameters
+        ----------
+        leg : IRFloatingLeg
+        fixings : float or np.ndarray
+            Scalar rate for ``FLOAT`` legs; array of daily overnight rates for ``OIS``
+            legs.
+
+        Returns
+        -------
+        float
+            Effective annualised rate for the historic period.
+        """
+
+        historic_fixing = None
+
+        # leg is not forward starting, return historic fixing
+        if leg.leg_type == LegType.FLOAT:
+            historic_fixing = fixings
+
+        elif leg.leg_type == LegType.OIS:
+            daycount_denom = int(CURRENCY_DAYCOUNT[leg.currency].split("/")[1])
+            fixing_dates = compute_historic_ois_fixing_dates(
+                leg.start_date, leg.lookback, leg.currency
+            )
+            days_diff = np.diff(fixing_dates).astype(int)
+            compounded_ois_rate = (
+                np.prod(1 + fixings * (days_diff / daycount_denom)) - 1
+            )
+            historic_fixing = compounded_ois_rate / (days_diff.sum() / daycount_denom)
+
+        return historic_fixing
+
+    def _compute_float_leg(
+        self,
+        leg: IRFloatingLeg,
+        curve: IRCurve,
+        fixings: float | np.ndarray,
+    ):
+        """
+        Computes cashflows for a floating or OIS leg.
+
+        Forward rates are implied from consecutive discount factors. If the valuation
+        date is past the leg's start date, the first period rate is replaced with the
+        effective historic fixing from :meth:`_compute_historic_fixing`.
+
+        Parameters
+        ----------
+        leg : IRFloatingLeg
+        curve : IRCurve
+            Projection and discounting curve for this leg.
+        fixings : float or np.ndarray
+            Historic fixing(s) for the first period. See
+            :meth:`_compute_historic_fixing` for conventions.
+
+        Returns
+        -------
+        PeriodicCashFlowSchedule
+            Schedule with cashflows signed by pay/receive convention.
+        """
+
+        schedule: PeriodicCashFlowSchedule = self._compute_schedule(leg)
+
+        dfs = curve.get_discount_factors(schedule.accrual_yearfracs)
+        dfs_offset = np.ones(dfs.size)
+        dfs_offset[1:] = dfs[:-1]
+
+        floating_rates = (dfs_offset / dfs - 1) / schedule.accrual_yearfracs_periodic
+
+        if self._valuation_date > leg.start_date:
+            floating_rates[0] = self._compute_historic_fixing(leg, fixings)
+
+        cashflows = (
+            schedule.accrual_yearfracs_periodic
+            * leg.notional
+            * floating_rates
+            * (1 if leg.pay_receive == PayReceive.RECEIVE else -1)
+        )
+
+        schedule.set_cashflows(cashflows)
+
+        return schedule
+
+    def price(self, irs: IRS) -> list[PeriodicCashFlowSchedule]:
+        """Computes undiscounted cashflow schedules for both legs of ``irs``.
+
+        Args:
+            irs: The swap to price.
+
+        Returns:
+            list[PeriodicCashFlowSchedule]: A two-element list
+            ``[leg_one_schedule, leg_two_schedule]``.
+
+        Raises:
+            ValueError: If validation fails. See :meth:`_validate`.
+
+        Example:
+            >>> fixed_leg = IRFixedLeg(
+            ...     currency=Currency.USD,
+            ...     notional=10_000_000,
+            ...     start_date=dt.date(2024, 1, 15),
+            ...     end_date=dt.date(2029, 1, 15),
+            ...     payment_frequency=Frequency.SEMI_ANNUAL,
+            ...     collateral_currency=Currency.USD,
+            ...     daycount=Daycount.ACT_360,
+            ...     dateroll=Dateroll.MODIFIED_FOLLOWING,
+            ...     pay_receive=PayReceive.PAY,
+            ...     fixed_rate=0.045,
+            ... )
+            >>> floating_leg = IRFloatingLeg(
+            ...     currency=Currency.USD,
+            ...     notional=10_000_000,
+            ...     start_date=dt.date(2024, 1, 15),
+            ...     end_date=dt.date(2029, 1, 15),
+            ...     payment_frequency=Frequency.QUARTERLY,
+            ...     collateral_currency=Currency.USD,
+            ...     daycount=Daycount.ACT_360,
+            ...     dateroll=Dateroll.MODIFIED_FOLLOWING,
+            ...     pay_receive=PayReceive.RECEIVE,
+            ...     index=FloatingIndex.SOFR,
+            ... )
+            >>> irs = IRS(fixed_leg, floating_leg)
+            >>> model = IRSModel(
+            ...     valuation_date=dt.date(2024, 1, 15),
+            ...     leg_two_curve=sofr_curve,
+            ... )
+            >>> leg_one_schedule, leg_two_schedule = model.price(irs)
+        """
+
+        self._validate(irs)
+        leg_schedules = []
+
+        leg: IRFixedLeg | IRFloatingLeg
+
+        legs = [irs.leg_one, irs.leg_two]
+        curves = [self._leg_one_curve, self._leg_two_curve]
+        fixings = [self._leg_one_historic_fixings, self._leg_two_historic_fixings]
+
+        for leg, curve, fixing in zip(legs, curves, fixings):
+            if leg.leg_type == LegType.FIXED:
+                leg_schedules.append(self._compute_fixed_leg(leg))
+            else:
+                leg_schedules.append(self._compute_float_leg(leg, curve, fixing))
+        return leg_schedules
