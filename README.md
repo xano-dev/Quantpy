@@ -43,7 +43,7 @@ PV:                  USD 12,301.67
 
 - **Fixed leg** - coupon = notional × rate × accrual yearfrac
 - **Floating leg** - forward rates implied from consecutive discount factor ratios
-- **OIS leg** - daily overnight fixings compounded over a lookback period and annualised
+- **OIS leg** - each overnight fixing compounds into the period cashflow; `lookback` is an observation lag (the fixing for day d uses the rate published d − lookback business days prior). For fully forward periods the daily compounding telescopes exactly to the single-period discount factor ratio, so daily iteration only matters when historic and forward-projected rates mix within a live period
 - **Seasoned swaps** - first period rate replaced with a historic fixing when valuation date is past the start
 - **CCIRS** - `fx_curves` is a per-leg list; set `None` for any leg already in the collateral currency
 
@@ -120,12 +120,13 @@ PV (discounted): USD -47,724.19
 
 ### `models/`
 - [x] FX Forward Model - analytic pricing via covered interest rate parity
-- [x] IRS Model - fixed leg, floating/OIS leg (forward rates via DF ratio, OIS compounding); live and seasoned swaps; single and cross-currency
+- [x] IRS Model - fixed leg, floating IBOR leg (forward rates via DF ratio); OIS leg (forward periods via DF ratio); live and seasoned swaps; single and cross-currency
 
 ### `price_and_risk/`
 - [x] DCF engine - per-schedule FX curve assignment with currency validation; single-currency and cross-currency
 
 ### Up next
+- [ ] OIS leg - fix lookback to be observation lag; mix historic and forward-projected rates for live in-progress periods
 - [ ] Vanilla options - IR caps/floors and FX vanilla options
 - [ ] Volatility surface - construction and interpolation
 - [ ] Greeks - bump-and-reprice delta, vega, and DV01 across all products
