@@ -2,7 +2,7 @@ import pandas as pd
 import datetime as dt
 import numpy as np
 from enum import StrEnum
-from qp.time.holiday_helper import get_holidays
+from qp.time.date.holiday_helper import get_holidays
 from qp.utils.maps.currency.currencies import Currency
 
 

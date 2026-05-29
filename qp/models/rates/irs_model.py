@@ -4,7 +4,8 @@ from qp.time.cashflows.cashflow_schedule import PeriodicCashFlowSchedule
 from qp.time.date.daycount import yearfrac
 from qp.utils.maps.general.payreceive import PayReceive
 from qp.utils.maps.rates.leg_type import LegType
-from qp.time.date.date_utils import compute_historic_ois_fixing_dates
+from qp.time.date.ois_fixing_dates import compute_historic_ois_fixing_dates
+from qp.time.date.holiday_helper import get_holidays
 
 import datetime as dt
 
@@ -106,12 +107,7 @@ class IRSModel:
 
                     if not isinstance(historic_fixing, np.ndarray):
                         raise ValueError(
-                            "Must provide a list of fixings for an OIS swap. If lookback is one, please provide as `[rate]`"
-                        )
-
-                    if len(historic_fixing) != leg.lookback:
-                        raise ValueError(
-                            "Number of historic fixings must match lookback period for an OIS"
+                            "Must provide a list of fixings for an OIS swap."
                         )
 
     def _compute_schedule(self, leg: IRFixedLeg | IRFloatingLeg):
@@ -170,7 +166,10 @@ class IRSModel:
     def _compute_historic_fixing(
         self,
         leg: IRFloatingLeg,
+        curve: IRCurve,
         fixings: float | np.ndarray,
+        schedule: PeriodicCashFlowSchedule,
+        hols: set,
     ):
         """
         Derives the effective historic fixing rate for the first period of leg.
@@ -199,9 +198,48 @@ class IRSModel:
 
         elif leg.leg_type == LegType.OIS:
             daycount_denom = int(leg.daycount.split("/")[1])
-            fixing_dates = compute_historic_ois_fixing_dates(
-                leg.start_date, leg.lookback, leg.currency
+            fixing_dates, future_fixing_dates = compute_historic_ois_fixing_dates(
+                leg.start_date,
+                self._valuation_date,
+                schedule.accrual_end_dates[0],
+                leg.lookback,
+                leg.currency,
             )
+
+            # validation
+            if len(fixings) != (
+                len(fixing_dates)
+                - (len(future_fixing_dates) if len(future_fixing_dates) != 0 else 1)
+            ):
+                raise ValueError(
+                    "Number of historic fixings must be equal to number of rate quotes between the valuation date and the start date"
+                )
+
+            if future_fixing_dates.size != 0:
+                for i in range(len(future_fixing_dates) - 1):
+                    d_0 = np.busday_offset(
+                        future_fixing_dates[i],
+                        -leg.lookback,
+                        holidays=[hol.isoformat() for hol in hols],
+                    )
+                    d_1 = np.busday_offset(
+                        future_fixing_dates[i + 1],
+                        -leg.lookback,
+                        holidays=[hol.isoformat() for hol in hols],
+                    )
+                    delta = yearfrac(d_0, d_1, leg.daycount, leg.currency)
+
+                    d_0_df = curve.get_discount_factors(
+                        yearfrac(self._valuation_date, d_0, leg.daycount, leg.currency)
+                    )
+                    d_1_df = curve.get_discount_factors(
+                        yearfrac(self._valuation_date, d_1, leg.daycount, leg.currency)
+                    )
+
+                    future_fixing_rate = (d_0_df / d_1_df - 1) / delta
+
+                    fixings = np.append(fixings, future_fixing_rate)
+
             days_diff = np.diff(fixing_dates).astype(int)
             compounded_ois_rate = (
                 np.prod(1 + fixings * (days_diff / daycount_denom)) - 1
@@ -248,8 +286,22 @@ class IRSModel:
 
         floating_rates = (dfs_offset / dfs - 1) / schedule.accrual_yearfracs_periodic
 
-        if self._valuation_date > leg.start_date:
-            floating_rates[0] = self._compute_historic_fixing(leg, fixings)
+        if (
+            self._valuation_date > leg.start_date
+            and np.datetime64(self._valuation_date) <= schedule.accrual_end_dates[0]
+        ):
+            hols = get_holidays(
+                leg.currency,
+                (
+                    leg.start_date.year - 1,
+                    leg.start_date.year,
+                    leg.start_date.year + 1,
+                ),
+            )
+
+            floating_rates[0] = self._compute_historic_fixing(
+                leg, curve, fixings, schedule, hols
+            )
 
         cashflows = (
             schedule.accrual_yearfracs_periodic

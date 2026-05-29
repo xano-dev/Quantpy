@@ -9,8 +9,10 @@ from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.frequencies import Frequency
 from qp.utils.maps.general.payreceive import PayReceive
 from qp.utils.maps.rates.floating_indexes import FloatingIndex
-from qp.time.date.daycount import Daycount
+from qp.utils.maps.rates.leg_type import LegType
+from qp.time.date.daycount import Daycount, yearfrac
 from qp.time.date.dateroll import Dateroll
+from qp.curves.ir_curve import IRCurve
 
 VALUATION_DATE = dt.date(2026, 6, 1)
 START_DATE = dt.date(2026, 6, 3)  # spot-starting T+2
@@ -214,6 +216,267 @@ def test_float_leg_forward_rates_non_flat_curve():
     for cf, tau, expected_rate in zip(schedules[1].cashflows, taus, expected_rates):
         implied_rate = abs(cf) / (NOTIONAL * tau)
         assert implied_rate == pytest.approx(expected_rate, rel=1e-6)
+
+
+# --- OIS helpers ---
+
+OIS_START_DATE = dt.date(2026, 5, 28)  # before VALUATION_DATE — enables mid-live tests
+OIS_END_DATE = dt.date(2026, 9, 1)
+
+
+def make_ois_leg(**kwargs):
+    defaults = dict(
+        currency=Currency.USD,
+        notional=NOTIONAL,
+        start_date=START_DATE,
+        end_date=OIS_END_DATE,
+        payment_frequency=Frequency.QUARTERLY,
+        collateral_currency=Currency.USD,
+        daycount=Daycount.ACT_360,
+        dateroll=Dateroll.MODIFIED_FOLLOWING,
+        pay_receive=PayReceive.RECEIVE,
+        index=FloatingIndex.SOFR,
+        leg_type=LegType.OIS,
+        lookback=0,
+    )
+    return IRFloatingLeg(**{**defaults, **kwargs})
+
+
+def make_flat_ois_curve(r: float):
+    """Returns exp(-r * tau) for any scalar or array yearfrac input."""
+    curve = MagicMock()
+    curve.get_discount_factors.side_effect = lambda tau: np.exp(-r * np.asarray(tau))
+    curve.at_date = VALUATION_DATE
+    curve.daycount = Daycount.ACT_360
+    return curve
+
+
+# --- OIS validation ---
+
+
+def test_raises_if_ois_mid_live_fixings_wrong_length():
+    """Providing the wrong number of historic fixings for a mid-live OIS should raise."""
+    ois_leg = make_ois_leg(start_date=OIS_START_DATE, end_date=OIS_END_DATE)
+    irs = make_irs(leg_two=ois_leg)
+    with pytest.raises(ValueError):
+        IRSModel(
+            valuation_date=VALUATION_DATE,
+            leg_two_curve=make_flat_ois_curve(0.05),
+            leg_two_historic_fixings=np.array([0.05]),  # wrong length
+        ).price(irs)
+
+
+# --- OIS fully forward ---
+
+
+def test_ois_fully_forward_cashflow_count():
+    """Quarterly OIS over ~3 months starting at valuation date should produce 1 cashflow."""
+    ois_leg = make_ois_leg(start_date=START_DATE, end_date=OIS_END_DATE)
+    schedules = IRSModel(
+        valuation_date=VALUATION_DATE,
+        leg_two_curve=make_flat_ois_curve(0.05),
+    ).price(make_irs(leg_two=ois_leg))
+    assert len(schedules[1].cashflows) == 1
+
+
+def test_ois_fully_forward_telescoping():
+    """For a fully forward single-period OIS, cashflow = notional × (P_start/P_end − 1).
+
+    With a flat curve exp(-r*t), P_start/P_end = exp(-r*tau_start) / exp(-r*tau_end).
+    Compute the expected cashflow by hand and fill in below.
+    """
+    r = 0.05
+    ois_leg = make_ois_leg(start_date=START_DATE, end_date=OIS_END_DATE)
+    schedules = IRSModel(
+        valuation_date=VALUATION_DATE,
+        leg_two_curve=make_flat_ois_curve(r),
+    ).price(make_irs(leg_two=ois_leg))
+    expected_cashflow = NOTIONAL * (
+        1
+        / np.exp(
+            -r * yearfrac(VALUATION_DATE, OIS_END_DATE, Daycount.ACT_360, Currency.USD)
+        )
+        - 1
+    )  # notional × (exp(-r * tau_start) / exp(-r * tau_end) - 1)
+    assert schedules[1].cashflows[0] == pytest.approx(expected_cashflow, rel=1e-6)
+
+
+# --- OIS mid-live ---
+
+
+def test_ois_mid_live_first_period_cashflow():
+    """Mid-live OIS: first period compounds historic fixings with forward rates.
+
+    Set start_date before VALUATION_DATE. Provide the correct number of historic
+    fixings (one per overnight period from start_date to valuation_date). Compute
+    the expected first-period cashflow by hand and fill in below.
+    """
+    historic_fixings = np.array(
+        [0.04, 0.05]
+    )  # one rate per overnight period from OIS_START_DATE to VALUATION_DATE
+    ois_leg = make_ois_leg(start_date=OIS_START_DATE, end_date=OIS_END_DATE)
+    schedules = IRSModel(
+        valuation_date=VALUATION_DATE,
+        leg_two_curve=make_flat_ois_curve(0.05),
+        leg_two_historic_fixings=historic_fixings,
+    ).price(make_irs(leg_two=ois_leg))
+
+    ois_fixing = ((1 + 0.04 * 1 / 360) * (1 + 0.05 * 3 / 360) - 1) / (4 / 360)
+    expected_first_cashflow = NOTIONAL * ois_fixing * 4 / 360
+    assert schedules[1].cashflows[0] == pytest.approx(expected_first_cashflow, rel=1e-6)
+
+
+# --- OIS lookback tests ---
+
+
+def test_ois_lookback_edge_case_validation_raises():
+    """Providing the wrong number of historic fixings for a lookback OIS should raise."""
+    ois_leg = make_ois_leg(start_date=OIS_START_DATE, end_date=OIS_END_DATE, lookback=2)
+    irs = make_irs(leg_two=ois_leg)
+    with pytest.raises(ValueError):
+        IRSModel(
+            valuation_date=VALUATION_DATE,
+            leg_two_curve=make_flat_ois_curve(0.05),
+            leg_two_historic_fixings=([0.05]),  # wrong length, expected is 2
+        ).price(irs)
+    pass
+
+
+def test_ois_lookback_edge_case_validation_does_not_raise():
+    """Providing the correct number of historic fixings for a lookback OIS should not raise."""
+    ois_leg = make_ois_leg(start_date=OIS_START_DATE, end_date=OIS_END_DATE, lookback=2)
+    irs = make_irs(leg_two=ois_leg)
+    IRSModel(
+        valuation_date=VALUATION_DATE,
+        leg_two_curve=make_flat_ois_curve(0.05),
+        leg_two_historic_fixings=([0.05, 0.06]),  # expected is 2
+    ).price(irs)
+    pass
+
+
+def test_ois_mid_live_simple():
+    """Test mid-live OIS calculates the correct OIS rate for the first period"""
+    ois_leg = make_ois_leg(
+        start_date=OIS_START_DATE, end_date=dt.date(2026, 9, 4), lookback=2
+    )
+    irs = make_irs(leg_two=ois_leg)
+    historic_fixings = [
+        0.05,
+        0.06,
+        0.07,
+        0.08,
+    ]  # dates = may28, may29, jun1, jun2, jun3 >> deltas = 1, 3, 1, 1
+    ois_curve = IRCurve(
+        VALUATION_DATE,
+        Daycount.ACT_360,
+        Currency.USD,
+        "SOFR",
+        [0, 0.1, 0.2, 0.3],
+        discount_factors=[1, 0.9998, 0.9987, 0.9964],
+    )
+
+    df_june_2 = np.exp(0 + np.log(0.9998) * ((1 / 360 - 0) / (0.1 - 0)))
+    expected_fwd_rate_jun3_jun4 = (1 / df_june_2 - 1) / (1 / 360)
+
+    expected_ois_rate_first_period = (
+        np.prod(
+            np.array(
+                [
+                    (1 + 0.05 * 1 / 360),
+                    (1 + 0.06 * 3 / 360),
+                    (1 + 0.07 * 1 / 360),
+                    (1 + 0.08 * 1 / 360),
+                    (1 + expected_fwd_rate_jun3_jun4 * 1 / 360),
+                ]
+            )
+        )
+        - 1
+    ) / ((1 + 3 + 1 + 1 + 1) / 360)
+
+    expected_cashflow_first_period = (
+        NOTIONAL
+        * expected_ois_rate_first_period
+        * yearfrac(dt.date(2026, 5, 28), dt.date(2026, 6, 4), Daycount.ACT_360)
+    )
+
+    irs_price = IRSModel(
+        valuation_date=VALUATION_DATE,
+        leg_two_curve=ois_curve,
+        leg_two_historic_fixings=historic_fixings,
+    ).price(irs)
+
+    ois_first_cashflow = irs_price[1].cashflows[0]
+
+    assert expected_cashflow_first_period == pytest.approx(ois_first_cashflow)
+
+
+def test_ois_lookback_kinked():
+    """With lookback=2, forward rates for future accrual days use DFs at the
+    shifted dates (accrual - 2bd). On a curve with a kink at t=2/360, the
+    shifted lookup Jun1→Jun2 falls in a different segment than the unshifted
+    Jun3→Jun4 — so an incorrect (unshifted) implementation would produce a
+    different cashflow.
+    """
+    ois_leg = make_ois_leg(
+        start_date=OIS_START_DATE, end_date=dt.date(2026, 9, 4), lookback=2
+    )
+    irs = make_irs(leg_two=ois_leg)
+
+    # Kink at t=2/360: slope in [0, 2/360] differs from [2/360, 4/360]
+    ois_curve = IRCurve(
+        VALUATION_DATE,
+        Daycount.ACT_360,
+        Currency.USD,
+        "SOFR",
+        [0, 2 / 360, 4 / 360, 0.2, 0.3],
+        discount_factors=[
+            1,
+            0.8888,
+            0.7777,
+            0.6666,
+            0.5555,
+        ],  # choose values with a clear kink
+    )
+
+    historic_fixings = [
+        0.05,
+        0.06,
+        0.07,
+        0.08,
+    ]  # 4 values — one per overnight period May28→May29, May29→Jun1, Jun1→Jun2, Jun2→Jun3
+
+    # Expected forward rate: (DF(0) / DF(1/360) - 1) / (1/360)
+    # DF(1/360) comes from log-linear interpolation in the [0, 2/360] segment
+    df_jun2 = np.exp(0 + (1 / 360 - 0) * (np.log(0.8888) - np.log(1)) / (2 / 360 - 0))
+    expected_fwd_rate_jun3_jun4 = (1 / df_jun2 - 1) / (1 / 360)
+    expected_ois_rate_first_period = (
+        np.prod(
+            np.array(
+                [
+                    (1 + 0.05 * 1 / 360),
+                    (1 + 0.06 * 3 / 360),
+                    (1 + 0.07 * 1 / 360),
+                    (1 + 0.08 * 1 / 360),
+                    (1 + expected_fwd_rate_jun3_jun4 * 1 / 360),
+                ]
+            )
+        )
+        - 1
+    ) / ((1 + 3 + 1 + 1 + 1) / 360)
+
+    expected_cashflow = (
+        NOTIONAL
+        * expected_ois_rate_first_period
+        * yearfrac(dt.date(2026, 5, 28), dt.date(2026, 6, 4), Daycount.ACT_360)
+    )
+
+    result = IRSModel(
+        valuation_date=VALUATION_DATE,
+        leg_two_curve=ois_curve,
+        leg_two_historic_fixings=historic_fixings,
+    ).price(irs)
+
+    assert result[1].cashflows[0] == pytest.approx(expected_cashflow)
 
 
 # --- price() structure ---
