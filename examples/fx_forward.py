@@ -3,7 +3,7 @@ FX Forward pricing example.
 
 Prices a EUR/AUD forward using two USD-denominated FX curves.
 Cross-rate derived as F(AUD/EUR) = F(USD/EUR) / F(USD/AUD).
-Undiscounted payoff converted to USD, then discounted via the DCF engine.
+Undiscounted payoff converted to USD, then discounted via DCFPricer.
 """
 
 import datetime as dt
@@ -12,7 +12,7 @@ from qp.curves.fx_curve import FXCurve
 from qp.curves.ir_curve import IRCurve
 from qp.instruments.fx.fx_forward import FXForward
 from qp.models.fx.fx_forward_model import FXForwardModel
-from qp.price_and_risk.discount_cashflows import DCF, Instrument
+from qp.price_and_risk.discount_cashflows import DCFPricer, PricingSpec
 from qp.time.date.daycount import Daycount
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.buysell import BuySell
@@ -56,16 +56,16 @@ forward = FXForward(
     maturity_date=dt.date(2027, 6, 3),
 )
 
-schedule = FXForwardModel(
+model = FXForwardModel(
     valuation_date=VALUATION_DATE,
     base_fx_curve=eur_curve,
     term_fx_curve=aud_curve,
-).price(forward)
+)
 
-result = DCF(
-    Instrument(cashflow_schedules=schedule, ir_curve=ir_curve)
-).discount_cashflows()
+spec = PricingSpec(model=model, instrument=forward, ir_curve=ir_curve)
+result = DCFPricer(spec).discount_cashflows()
 
+schedule = model.price(forward)
 fwd_rate = eur_curve.get_rates(1.0) / aud_curve.get_rates(1.0)
 print(f"Forward rate:        {fwd_rate:.4f} AUD/EUR")
 print(f"Strike:              {forward.strike:.4f} AUD/EUR")

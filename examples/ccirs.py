@@ -14,7 +14,7 @@ from qp.curves.fx_curve import FXCurve
 from qp.curves.ir_curve import IRCurve
 from qp.instruments.rates.irs import IRS, IRFixedLeg, IRFloatingLeg
 from qp.models.rates.irs_model import IRSModel
-from qp.price_and_risk.discount_cashflows import DCF, Instrument
+from qp.price_and_risk.discount_cashflows import DCFPricer, PricingSpec
 from qp.time.date.dateroll import Dateroll
 from qp.time.date.daycount import Daycount, yearfrac
 from qp.utils.maps.currency.currencies import Currency
@@ -72,19 +72,17 @@ ccirs = IRS(
     ),
 )
 
-schedules = IRSModel(valuation_date=VALUATION_DATE, leg_two_curve=usd_curve).price(
-    ccirs
+model = IRSModel(valuation_date=VALUATION_DATE, leg_two_curve=usd_curve)
+
+spec = PricingSpec(
+    model=model,
+    instrument=ccirs,
+    ir_curve=usd_curve,
+    fx_curves=[eur_fx, None],
 )
-fixed_schedule, float_schedule = schedules
+result = DCFPricer(spec).discount_cashflows()
 
-result = DCF(
-    Instrument(
-        cashflow_schedules=list(schedules),
-        ir_curve=usd_curve,
-        fx_curves=[eur_fx, None],
-    )
-).discount_cashflows()
-
+fixed_schedule, float_schedule = model.price(ccirs)
 print("EUR fixed leg cashflows (undiscounted):")
 for date, cf in zip(fixed_schedule.payment_dates, fixed_schedule.cashflows):
     print(

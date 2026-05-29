@@ -27,9 +27,10 @@ graph TD
 Priced analytically via covered interest rate parity. Cross-rates derived as F(term/base) = F(USD/base) / F(USD/term), so any currency pair can be priced from two USD-denominated FX curves. Full example: [examples/fx_forward.py](examples/fx_forward.py)
 
 ```python
-# Model converts the payoff to USD — DCF just discounts a single USD cashflow
-schedule = FXForwardModel(valuation_date=..., base_fx_curve=eur_curve, term_fx_curve=aud_curve).price(forward)
-result = DCF(Instrument(cashflow_schedules=schedule, ir_curve=ir_curve)).discount_cashflows()
+# Model converts the payoff to USD — DCFPricer discounts a single USD cashflow
+model = FXForwardModel(valuation_date=..., base_fx_curve=eur_curve, term_fx_curve=aud_curve)
+spec = PricingSpec(model=model, instrument=forward, ir_curve=ir_curve)
+result = DCFPricer(spec).discount_cashflows()
 ```
 
 ```
@@ -50,9 +51,10 @@ PV:                  USD 12,301.67
 Full examples: [examples/irs.py](examples/irs.py) | [examples/ccirs.py](examples/ccirs.py)
 
 ```python
-# IRS: generate undiscounted cashflow schedules, then discount
-schedules = IRSModel(valuation_date=..., leg_two_curve=curve).price(irs)
-result = DCF(Instrument(cashflow_schedules=list(schedules), ir_curve=curve)).discount_cashflows()
+# IRS: wrap model + instrument + curves in PricingSpec, then price
+model = IRSModel(valuation_date=..., leg_two_curve=curve)
+spec = PricingSpec(model=model, instrument=irs, ir_curve=curve)
+result = DCFPricer(spec).discount_cashflows()
 ```
 
 ```
@@ -77,9 +79,8 @@ PV (discounted): USD 30,049.88
 
 ```python
 # CCIRS: same pipeline — assign an FX curve to any foreign-currency leg
-result = DCF(
-    Instrument(cashflow_schedules=list(schedules), ir_curve=usd_curve, fx_curves=[eur_fx, None])
-).discount_cashflows()
+spec = PricingSpec(model=model, instrument=ccirs, ir_curve=usd_curve, fx_curves=[eur_fx, None])
+result = DCFPricer(spec).discount_cashflows()
 ```
 
 ```
