@@ -72,7 +72,7 @@ class IRCurve:
             interest_rates, discount_factors, rate_type
         )
         self._discount_factors = self._generate_discount_factors(
-            interest_rates, discount_factors
+            self._interest_rates, discount_factors
         )
 
         self._ensure_correct_tenors_dfs()
@@ -85,6 +85,7 @@ class IRCurve:
         self._interpolation_method = interpolation_method
         self._extrapolate = extrapolate
         self._interpolator = self._generate_interpolator()
+        self._rate_type = rate_type
 
     @property
     def at_date(self):
@@ -193,3 +194,26 @@ class IRCurve:
 
     def get_rates(self, tenors: float | np.ndarray) -> float | np.ndarray:
         return -np.log(self._interpolator.interpolate(tenors)) / tenors
+
+    def shock_curve(self, shock: float | list[float] | np.ndarray):
+        """
+        Shocks the interest rate curve by the amount in the bump and returns a new shocked curve.
+        If a scalar is passed the shock is a flat amount, else the curve is shocked at each tenor
+        point by the number in the list.
+        """
+
+        shock_array = np.array(shock)
+
+        if shock_array.size != 1 and (shock_array.size != self._tenors.size):
+            raise ValueError("Number of bumps equal to number of interest rates for ")
+
+        return IRCurve(
+            at_date=self._at_date,
+            daycount=self._daycount,
+            currency=self._currency,
+            curve_name=self._curve_name,
+            tenors=self._tenors,
+            interpolation_method=self._interpolation_method,
+            interest_rates=self._interest_rates + shock_array,
+            extrapolate=self._extrapolate,
+        )

@@ -6,13 +6,14 @@ from qp.utils.maps.general.payreceive import PayReceive
 from qp.utils.maps.rates.leg_type import LegType
 from qp.time.date.ois_fixing_dates import compute_historic_ois_fixing_dates
 from qp.time.date.holiday_helper import get_holidays
+from qp.models.base_model import BaseModel
 
 import datetime as dt
 
 import numpy as np
 
 
-class IRSModel:
+class IRSModel(BaseModel):
     """
     Pricing model for interest rate swaps.
 
@@ -82,33 +83,37 @@ class IRSModel:
             are provided, or if the fixings are of the wrong type for the leg type.
         """
         for leg, curve in zip(irs.legs, [self._leg_one_curve, self._leg_two_curve]):
-            if leg.leg_type != LegType.FIXED:
-                if curve is None:
-                    raise ValueError("Must provide IRCurve for floating and OIS legs")
+            if leg is not None:
+                if leg.leg_type != LegType.FIXED:
+                    if curve is None:
+                        raise ValueError(
+                            "Must provide IRCurve for floating and OIS legs"
+                        )
 
         for leg, historic_fixing in zip(
             irs.legs,
             [self._leg_one_historic_fixings, self._leg_two_historic_fixings],
         ):
+            if leg is not None:
 
-            if self._valuation_date > leg.start_date:
-                if historic_fixing is None:
-                    raise ValueError(
-                        "Must provide historic fixings when start date is at or before valuation date"
-                    )
-
-                if leg.leg_type == LegType.FLOAT:
-                    if not isinstance(historic_fixing, float):
+                if self._valuation_date > leg.start_date:
+                    if historic_fixing is None:
                         raise ValueError(
-                            "Must provide a single scalar historic fixing for a floating leg"
+                            "Must provide historic fixings when start date is at or before valuation date"
                         )
 
-                if leg.leg_type == LegType.OIS:
+                    if leg.leg_type == LegType.FLOAT:
+                        if not isinstance(historic_fixing, float):
+                            raise ValueError(
+                                "Must provide a single scalar historic fixing for a floating leg"
+                            )
 
-                    if not isinstance(historic_fixing, np.ndarray):
-                        raise ValueError(
-                            "Must provide a list of fixings for an OIS swap."
-                        )
+                    if leg.leg_type == LegType.OIS:
+
+                        if not isinstance(historic_fixing, np.ndarray):
+                            raise ValueError(
+                                "Must provide a list of fixings for an OIS swap."
+                            )
 
     def _compute_schedule(self, leg: IRFixedLeg | IRFloatingLeg):
         """
@@ -370,8 +375,25 @@ class IRSModel:
         fixings = [self._leg_one_historic_fixings, self._leg_two_historic_fixings]
 
         for leg, curve, fixing in zip(legs, curves, fixings):
-            if leg.leg_type == LegType.FIXED:
-                leg_schedules.append(self._compute_fixed_leg(leg))
-            else:
-                leg_schedules.append(self._compute_float_leg(leg, curve, fixing))
+            if leg is not None:
+                if leg.leg_type == LegType.FIXED:
+                    leg_schedules.append(self._compute_fixed_leg(leg))
+                else:
+                    leg_schedules.append(self._compute_float_leg(leg, curve, fixing))
         return leg_schedules
+
+    def curves(self):
+        return {
+            "fx_curves": None,
+            "ir_curves": [self._leg_one_curve, self._leg_two_curve],
+        }
+
+    def with_curves(self, curves: dict):
+
+        return IRSModel(
+            self._valuation_date,
+            curves["ir_curves"][0],
+            curves["ir_curves"][1],
+            self._leg_one_historic_fixings,
+            self._leg_two_historic_fixings,
+        )

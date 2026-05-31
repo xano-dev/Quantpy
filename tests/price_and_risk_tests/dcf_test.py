@@ -3,7 +3,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from qp.price_and_risk.discount_cashflows import DCFPricer, PricingSpec
+from qp.price_and_risk.discount_cashflows import DCFPricer
+from qp.price_and_risk.pricing_spec import PricingSpec
 from qp.time.cashflows.cashflow_schedule import CashFlowSchedule
 from qp.curves.ir_curve import IRCurve
 from qp.instruments.rates.irs import IRS, IRFixedLeg, IRFloatingLeg
@@ -76,7 +77,7 @@ def make_pricing_spec(
     return PricingSpec(
         model=make_mock_model(schedule),
         instrument=MagicMock(),
-        ir_curve=make_ir_curve_mock(collateral_currency, discount_factors),
+        discount_curve=make_ir_curve_mock(collateral_currency, discount_factors),
         fx_curves=fx_curves,
     )
 
@@ -139,7 +140,7 @@ def test_raises_if_fx_curve_currency_1_does_not_match_cashflow_currency():
             )
         ),
         instrument=MagicMock(),
-        ir_curve=make_ir_curve_mock(Currency.USD, [0.95]),
+        discount_curve=make_ir_curve_mock(Currency.USD, [0.95]),
         fx_curves=[
             make_fx_curve_mock([1.10], currency_1=Currency.GBP, currency_2=Currency.USD)
         ],
@@ -156,7 +157,7 @@ def test_raises_if_fx_curve_currency_2_does_not_match_collateral_currency():
             )
         ),
         instrument=MagicMock(),
-        ir_curve=make_ir_curve_mock(Currency.USD, [0.95]),
+        discount_curve=make_ir_curve_mock(Currency.USD, [0.95]),
         fx_curves=[
             make_fx_curve_mock([1.10], currency_1=Currency.EUR, currency_2=Currency.GBP)
         ],
@@ -170,7 +171,7 @@ def test_raises_if_fx_curves_is_not_a_list():
         PricingSpec(
             model=make_mock_model(make_schedule([1_000.0])),
             instrument=MagicMock(),
-            ir_curve=make_ir_curve_mock(Currency.USD, [0.95]),
+            discount_curve=make_ir_curve_mock(Currency.USD, [0.95]),
             fx_curves=make_fx_curve_mock([1.10]),  # bare curve, not a list
         )
 
@@ -181,7 +182,7 @@ def test_raises_if_ir_curve_currency_does_not_match_collateral():
             make_schedule([1_000.0], collateral_currency=Currency.USD)
         ),
         instrument=MagicMock(),
-        ir_curve=make_ir_curve_mock(Currency.EUR, [0.95]),
+        discount_curve=make_ir_curve_mock(Currency.EUR, [0.95]),
     )
     with pytest.raises(ValueError):
         DCFPricer(spec).discount_cashflows()
@@ -195,7 +196,7 @@ def test_raises_if_cross_currency_schedule_has_no_fx_curve():
             )
         ),
         instrument=MagicMock(),
-        ir_curve=make_ir_curve_mock(Currency.USD, [0.95]),
+        discount_curve=make_ir_curve_mock(Currency.USD, [0.95]),
         fx_curves=None,
     )
     with pytest.raises(ValueError):
@@ -210,7 +211,7 @@ def test_warns_if_fx_curve_provided_for_single_currency_schedule():
             )
         ),
         instrument=MagicMock(),
-        ir_curve=make_ir_curve_mock(Currency.USD, [0.95]),
+        discount_curve=make_ir_curve_mock(Currency.USD, [0.95]),
         fx_curves=[make_fx_curve_mock([1.0])],
     )
     with pytest.warns(UserWarning):
@@ -301,7 +302,7 @@ def test_two_schedules_on_one_instrument_pv_is_sum():
     spec = PricingSpec(
         model=make_mock_model(schedules),
         instrument=MagicMock(),
-        ir_curve=ir_curve,
+        discount_curve=ir_curve,
         fx_curves=[None, None],
     )
     result = DCFPricer(spec).discount_cashflows()
@@ -399,7 +400,7 @@ def test_irs_dcf_pv_hand_computed():
     spec = PricingSpec(
         model=IRSModel(valuation_date=VALUATION_DATE, leg_two_curve=mock_curve),
         instrument=irs,
-        ir_curve=mock_curve,
+        discount_curve=mock_curve,
     )
     result = DCFPricer(spec).discount_cashflows()
 
@@ -454,7 +455,7 @@ def test_ccirs_dcf_pv_hand_computed():
             leg_two_curve=usd_curve,
         ),
         instrument=irs,
-        ir_curve=usd_curve,
+        discount_curve=usd_curve,
         fx_curves=[fx_curve, None],
     )
     results = DCFPricer(spec).discount_cashflows()
@@ -480,7 +481,7 @@ def test_ccirs_higher_fx_rate_increases_eur_fixed_leg_pv():
         spec = PricingSpec(
             model=make_mock_model(schedules[0]),
             instrument=MagicMock(),
-            ir_curve=usd_curve,
+            discount_curve=usd_curve,
             fx_curves=[make_fx_curve_mock([spot, spot])],
         )
         return DCFPricer(spec).discount_cashflows()[0].value
@@ -507,7 +508,7 @@ def test_ccirs_unit_fx_matches_single_currency_fixed_leg_pv():
             PricingSpec(
                 model=make_mock_model(schedules_eur[0]),
                 instrument=MagicMock(),
-                ir_curve=usd_curve,
+                discount_curve=usd_curve,
                 fx_curves=[make_fx_curve_mock([1.0, 1.0])],
             )
         )
@@ -520,7 +521,7 @@ def test_ccirs_unit_fx_matches_single_currency_fixed_leg_pv():
             PricingSpec(
                 model=make_mock_model(schedules_usd[0]),
                 instrument=MagicMock(),
-                ir_curve=usd_curve,
+                discount_curve=usd_curve,
             )
         )
         .discount_cashflows()[0]
@@ -571,7 +572,7 @@ def test_ccirs_both_legs_foreign_currency():
     spec = PricingSpec(
         model=IRSModel(valuation_date=VALUATION_DATE, leg_two_curve=usd_curve),
         instrument=irs,
-        ir_curve=usd_curve,
+        discount_curve=usd_curve,
         fx_curves=[eur_fx, gbp_fx],
     )
     result = DCFPricer(spec).discount_cashflows()
@@ -620,7 +621,7 @@ def test_fx_forward_dcf_pv_hand_computed():
             term_fx_curve=term_curve,
         ),
         instrument=fwd,
-        ir_curve=make_ir_curve_mock(Currency.USD, [df_maturity]),
+        discount_curve=make_ir_curve_mock(Currency.USD, [df_maturity]),
     )
 
     result = DCFPricer(spec).discount_cashflows()

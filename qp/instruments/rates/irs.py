@@ -216,9 +216,15 @@ class IRFloatingLeg(IRBaseLeg):
 
 
 class IRS:
+    """
+    Python representation of an IRS - allows for single legged IRS by setting one leg to None
+
+    """
 
     def __init__(
-        self, leg_one: IRFixedLeg | IRFloatingLeg, leg_two: IRFixedLeg | IRFloatingLeg
+        self,
+        leg_one: IRFixedLeg | IRFloatingLeg | None = None,
+        leg_two: IRFixedLeg | IRFloatingLeg | None = None,
     ):
         self.__leg_one = leg_one
         self.__leg_two = leg_two

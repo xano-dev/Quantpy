@@ -77,7 +77,7 @@ model = IRSModel(valuation_date=VALUATION_DATE, leg_two_curve=usd_curve)
 spec = PricingSpec(
     model=model,
     instrument=ccirs,
-    ir_curve=usd_curve,
+    discount_curve=usd_curve,
     fx_curves=[eur_fx, None],
 )
 result = DCFPricer(spec).discount_cashflows()

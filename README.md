@@ -1,6 +1,6 @@
 # Quantpy
 
-A derivatives pricing library for interest rates and FX, built from scratch in Python with no third-party pricing libraries. 204 passing tests.
+A derivatives pricing library for interest rates and FX, built from scratch in Python with no third-party pricing libraries. 207 passing tests.
 
 ## Architecture
 
@@ -29,7 +29,7 @@ Priced analytically via covered interest rate parity. Cross-rates derived as F(t
 ```python
 # Model converts the payoff to USD — DCFPricer discounts a single USD cashflow
 model = FXForwardModel(valuation_date=..., base_fx_curve=eur_curve, term_fx_curve=aud_curve)
-spec = PricingSpec(model=model, instrument=forward, ir_curve=ir_curve)
+spec = PricingSpec(model=model, instrument=forward, discount_curve=ir_curve)
 result = DCFPricer(spec).discount_cashflows()
 ```
 
@@ -53,7 +53,7 @@ Full examples: [examples/irs.py](examples/irs.py) | [examples/ccirs.py](examples
 ```python
 # IRS: wrap model + instrument + curves in PricingSpec, then price
 model = IRSModel(valuation_date=..., leg_two_curve=curve)
-spec = PricingSpec(model=model, instrument=irs, ir_curve=curve)
+spec = PricingSpec(model=model, instrument=irs, discount_curve=curve)
 result = DCFPricer(spec).discount_cashflows()
 ```
 
@@ -79,7 +79,7 @@ PV (discounted): USD 30,049.88
 
 ```python
 # CCIRS: same pipeline — assign an FX curve to any foreign-currency leg
-spec = PricingSpec(model=model, instrument=ccirs, ir_curve=usd_curve, fx_curves=[eur_fx, None])
+spec = PricingSpec(model=model, instrument=ccirs, discount_curve=usd_curve, fx_curves=[eur_fx, None])
 result = DCFPricer(spec).discount_cashflows()
 ```
 
@@ -125,12 +125,12 @@ PV (discounted): USD -47,724.19
 
 ### `price_and_risk/`
 - [x] DCF engine - per-schedule FX curve assignment with currency validation; single-currency and cross-currency
+- [x] Greeks - `parallel_dv01(shock)` central difference bump-and-reprice; shocks all IR curves in model + discount curve; additivity verified (DV01(IRS) = DV01(fixed leg) + DV01(floating leg))
 
 ### Up next
-- [ ] OIS leg - fix lookback to be observation lag; mix historic and forward-projected rates for live in-progress periods
-- [ ] Vanilla options - IR caps/floors and FX vanilla options
+- [ ] FX delta - CIP-consistent FX curve shocking; `Greeks.fx_delta()`
+- [ ] Vanilla options - IR caps/floors and FX vanilla options (Garman-Kohlhagen)
 - [ ] Volatility surface - construction and interpolation
-- [ ] Greeks - bump-and-reprice delta, vega, and DV01 across all products
 - [ ] SABR model - stochastic volatility for IR smile
 - [ ] Monte Carlo engine - path generation and LSM for early exercise
 - [ ] Curve bootstrapping - par rates to zero rates

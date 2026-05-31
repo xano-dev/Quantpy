@@ -62,7 +62,7 @@ model = FXForwardModel(
     term_fx_curve=aud_curve,
 )
 
-spec = PricingSpec(model=model, instrument=forward, ir_curve=ir_curve)
+spec = PricingSpec(model=model, instrument=forward, discount_curve=ir_curve)
 result = DCFPricer(spec).discount_cashflows()
 
 schedule = model.price(forward)

@@ -4,11 +4,12 @@ from qp.time.cashflows.cashflow_schedule import CashFlowSchedule
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.buysell import BuySell
 from qp.utils.maps.currency.currency_daycount import CURRENCY_DAYCOUNT
+from qp.models.base_model import BaseModel
 
 import datetime as dt
 
 
-class FXForwardModel:
+class FXForwardModel(BaseModel):
 
     def __init__(
         self, valuation_date: dt.date, base_fx_curve: FXCurve, term_fx_curve: FXCurve
@@ -97,4 +98,16 @@ class FXForwardModel:
             Currency.USD,
             CURRENCY_DAYCOUNT[fx_forward.collateral_ccy],
             fx_forward.collateral_ccy,
+        )
+
+    def curves(self):
+        return {
+            "fx_curves": [self._base_fx_curve, self._term_fx_curve],
+            "ir_curves": None,
+        }
+
+    def with_curves(self, curves: dict):
+
+        return FXForwardModel(
+            self._valuation_date, curves["fx_curves"][0], curves["fx_curves"][1]
         )

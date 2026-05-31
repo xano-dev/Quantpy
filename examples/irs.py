@@ -62,7 +62,7 @@ irs = IRS(
 
 model = IRSModel(valuation_date=VALUATION_DATE, leg_two_curve=curve)
 
-spec = PricingSpec(model=model, instrument=irs, ir_curve=curve)
+spec = PricingSpec(model=model, instrument=irs, discount_curve=curve)
 result = DCFPricer(spec).discount_cashflows()
 
 fixed_schedule, float_schedule = model.price(irs)
