@@ -120,3 +120,26 @@ class FXCurve:
         if isinstance(tenor, dt.date):
             tenor = yearfrac(self.at_date, tenor, self._daycount)
         return self._interpolator.interpolate(tenor)
+
+    def shock_curve(self, shock: float):
+        """
+        Shock must be an additive shock to the spot rate.
+
+        Forward curve is recalculated from the shocked spot rate.
+
+        Returns a new FXCurve object.
+        """
+        shocked_spot = self.spot_rate + shock
+
+        shocked_forward_curve = self._fx_rates[1:] * (shocked_spot / self.spot_rate)
+
+        return FXCurve(
+            at_date=self._at_date,
+            daycount=self._daycount,
+            currency_1=self._currency_1,
+            currency_2=self._currency_2,
+            fx_rates=np.append(shocked_spot, shocked_forward_curve),
+            tenors=self._tenors,
+            interpolation_method=self._interpolation_method,
+            extrapolate=self._extrapolate,
+        )

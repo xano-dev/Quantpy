@@ -127,10 +127,6 @@ PV (discounted): USD -47,724.19
 - [x] DCF engine - per-schedule FX curve assignment with currency validation; single-currency and cross-currency
 - [x] Greeks - `parallel_dv01(shock)` central difference bump-and-reprice; shocks all IR curves in model + discount curve; additivity verified (DV01(IRS) = DV01(fixed leg) + DV01(floating leg))
 
-### Up next
-- [ ] FX delta - CIP-consistent FX curve shocking; `Greeks.fx_delta()`
-- [ ] Vanilla options - IR caps/floors and FX vanilla options (Garman-Kohlhagen)
-- [ ] Volatility surface - construction and interpolation
-- [ ] SABR model - stochastic volatility for IR smile
-- [ ] Monte Carlo engine - path generation and LSM for early exercise
-- [ ] Curve bootstrapping - par rates to zero rates
+### What's next
+
+The focus now is options and short-rate models, moving from one-factor Hull-White to the two-factor G2++, building toward a Bermudan swaption model-comparison study as the first milestone. Each new pricer ships with its risk sensitivities and is checked against closed-form results and QuantLib.
