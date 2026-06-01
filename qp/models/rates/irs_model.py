@@ -311,7 +311,7 @@ class IRSModel(BaseModel):
         cashflows = (
             schedule.accrual_yearfracs_periodic
             * leg.notional
-            * floating_rates
+            * (floating_rates + leg.spread)
             * (1 if leg.pay_receive == PayReceive.RECEIVE else -1)
         )
 

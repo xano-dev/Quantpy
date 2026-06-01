@@ -1,6 +1,6 @@
 # Quantpy
 
-A derivatives pricing library for interest rates and FX, built from scratch in Python with no third-party pricing libraries. 207 passing tests.
+A derivatives pricing library for interest rates and FX, built from scratch in Python with no third-party pricing libraries. 237 passing tests.
 
 ## Architecture
 
@@ -114,9 +114,10 @@ PV (discounted): USD -47,724.19
 ### `instruments/`
 - [x] FX Forward
 - [x] Interest Rate Swap - `IRFixedLeg`, `IRFloatingLeg`; pay/receive, payment lag, OIS lookback
+- [x] IR Cap - `IRCap`; term rate underlyings (EURIBOR, Term SOFR); strike; no OIS/spread (out of scope)
 
 ### `curves/`
-- [x] FX Curve - currency_2/currency_1 quote convention; configurable interpolation (default log-linear)
+- [x] FX Curve - currency_2/currency_1 quote convention; configurable interpolation (default log-linear); `shock_curve(shock)` additive spot shock with CIP-consistent forward scaling
 - [x] IR Curve - accepts zero rates or discount factors and derives the other; configurable interpolation (default log-linear)
 
 ### `models/`
@@ -125,7 +126,7 @@ PV (discounted): USD -47,724.19
 
 ### `price_and_risk/`
 - [x] DCF engine - per-schedule FX curve assignment with currency validation; single-currency and cross-currency
-- [x] Greeks - `parallel_dv01(shock)` central difference bump-and-reprice; shocks all IR curves in model + discount curve; additivity verified (DV01(IRS) = DV01(fixed leg) + DV01(floating leg))
+- [x] Greeks - `parallel_dv01(shock)` central difference bump-and-reprice; `fx_delta(shock)` CIP-consistent spot shock (general formula: N×P_f(0,T)); `cross_gamma(fx_shock, ir_shock)` four-point finite difference
 
 ### What's next
 

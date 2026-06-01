@@ -491,3 +491,17 @@ def test_price_leg_order_matches_irs_legs():
     schedules = make_model().price(make_irs())
     assert schedules[0].cashflows[0] < 0  # fixed PAY leg
     assert schedules[1].cashflows[0] > 0  # float RECEIVE leg
+
+
+def test_float_leg_spread_increases_receiver_pv():
+    # A non-zero spread on a receiver leg adds to every cashflow — PV must be higher
+    # than the same leg with spread=0.
+    curve = make_ir_curve([0.99, 0.98, 0.97, 0.96, 0.95, 0.94, 0.93, 0.92])
+    leg_no_spread = make_float_leg(spread=0.0)
+    leg_with_spread = make_float_leg(spread=0.01)
+    irs_no_spread = IRS(leg_one=None, leg_two=leg_no_spread)
+    irs_with_spread = IRS(leg_one=None, leg_two=leg_with_spread)
+    model = IRSModel(valuation_date=VALUATION_DATE, leg_two_curve=curve)
+    pv_no_spread = sum(model.price(irs_no_spread)[0].cashflows)
+    pv_with_spread = sum(model.price(irs_with_spread)[0].cashflows)
+    assert pv_with_spread > pv_no_spread
