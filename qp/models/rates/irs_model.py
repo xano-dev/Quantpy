@@ -289,6 +289,11 @@ class IRSModel(BaseModel):
         dfs_offset = np.ones(dfs.size)
         dfs_offset[1:] = dfs[:-1]
 
+        if leg.start_date > self._valuation_date:
+            dfs_offset[0] = curve.get_discount_factors(
+                yearfrac(curve.at_date, schedule.start_date, curve.daycount)
+            )
+
         floating_rates = (dfs_offset / dfs - 1) / schedule.accrual_yearfracs_periodic
 
         if (

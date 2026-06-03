@@ -26,11 +26,14 @@ class FloatingIndex(StrEnum):
     BKBM_6M = "BKBM_6M"
     BKBM_1Y = "BKBM_1Y"
 
+    EURIBOR_1M = "EURIBOR_1M"
     EURIBOR_3M = "EURIBOR_3M"
     EURIBOR_6M = "EURIBOR_6M"
+    EURIBOR_1Y = "EURIBOR_1T"
     TERM_SOFR_1M = "TERM_SOFR_1M"
     TERM_SOFR_3M = "TERM_SOFR_3M"
     TERM_SOFR_6M = "TERM_SOFR_6M"
+    TERM_SOFR_1Y = "TERM_SOFR_1Y"
 
     @classmethod
     def _missing_(cls, value):

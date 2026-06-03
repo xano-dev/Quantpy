@@ -28,9 +28,14 @@ NOTIONAL = 10_000_000
 
 
 def make_ir_curve_mock(currency: Currency, discount_factors):
+    def _get_dfs(t):
+        if np.ndim(t) == 0:
+            return 1.0
+        return np.array(discount_factors)
+
     curve = MagicMock()
     curve.currency = currency
-    curve.get_discount_factors.return_value = np.array(discount_factors, dtype=float)
+    curve.get_discount_factors.side_effect = _get_dfs
     curve.at_date = VALUATION_DATE
     curve.daycount = Daycount.ACT_360
     return curve

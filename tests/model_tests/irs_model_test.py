@@ -55,12 +55,18 @@ def make_float_leg(**kwargs):
 
 
 def make_ir_curve(discount_factors):
-    """Mock IRCurve whose get_discount_factors returns the given array."""
-    curve = MagicMock()
-    curve.get_discount_factors.return_value = np.array(discount_factors)
-    curve.at_date = VALUATION_DATE
-    curve.daycount = Daycount.ACT_360
-    return curve
+    dfs = np.array(discount_factors)
+    n = len(dfs)
+    tenors = np.array([i * 0.25 for i in range(1, n + 1)])
+    return IRCurve(
+        at_date=VALUATION_DATE,
+        daycount=Daycount.ACT_360,
+        currency=Currency.USD,
+        curve_name="USD_TEST",
+        tenors=tenors,
+        discount_factors=dfs,
+        extrapolate=True,
+    )
 
 
 def make_irs(**kwargs):
@@ -181,18 +187,20 @@ def test_float_leg_cashflows_are_negative_when_paying():
 def test_float_leg_forward_rate_from_flat_curve():
     """With a flat discount curve exp(-r*T), each forward rate should equal r."""
     r = 0.05
-    n_periods = 8
-    taus = np.array([i * 0.25 for i in range(1, n_periods + 1)])
-    dfs = 1 / (1 + r * 0.25) ** (np.arange(taus.size) + 1)
-    curve = make_ir_curve(dfs)
+    curve = make_flat_ois_curve(r, Daycount.THIRTY_360)
 
     schedules = IRSModel(valuation_date=VALUATION_DATE, leg_two_curve=curve).price(
-        make_irs(leg_two=make_float_leg(daycount=Daycount.THIRTY_360))
+        make_irs(
+            leg_one=make_fixed_leg(start_date=VALUATION_DATE),
+            leg_two=make_float_leg(
+                daycount=Daycount.THIRTY_360, start_date=VALUATION_DATE
+            ),
+        )
     )
     # each forward rate ≈ r; check first few periods
     for cf, tau in zip(schedules[1].cashflows, schedules[1].accrual_yearfracs_periodic):
         implied_rate = abs(cf) / (NOTIONAL * tau)
-        assert implied_rate == pytest.approx(r, abs=1e-4)
+        assert implied_rate == pytest.approx((np.exp(r * tau) - 1) / tau, abs=1e-4)
 
 
 def test_float_leg_forward_rates_non_flat_curve():
@@ -208,8 +216,15 @@ def test_float_leg_forward_rates_non_flat_curve():
         make_irs()
     )
 
+    dfs = curve.get_discount_factors(
+        yearfrac(curve.at_date, schedules[1].accrual_end_dates, curve.daycount)
+    )
+
     dfs_offset = np.ones(len(dfs))
     dfs_offset[1:] = dfs[:-1]
+    dfs_offset[0] = curve.get_discount_factors(
+        yearfrac(curve.at_date, schedules[0].start_date, curve.daycount)
+    )
     taus = schedules[1].accrual_yearfracs_periodic
     expected_rates = (dfs_offset / dfs - 1) / taus
 
@@ -242,12 +257,12 @@ def make_ois_leg(**kwargs):
     return IRFloatingLeg(**{**defaults, **kwargs})
 
 
-def make_flat_ois_curve(r: float):
+def make_flat_ois_curve(r: float, daycount: Daycount = Daycount.ACT_360):
     """Returns exp(-r * tau) for any scalar or array yearfrac input."""
     curve = MagicMock()
     curve.get_discount_factors.side_effect = lambda tau: np.exp(-r * np.asarray(tau))
     curve.at_date = VALUATION_DATE
-    curve.daycount = Daycount.ACT_360
+    curve.daycount = daycount
     return curve
 
 
@@ -292,7 +307,9 @@ def test_ois_fully_forward_telescoping():
         leg_two_curve=make_flat_ois_curve(r),
     ).price(make_irs(leg_two=ois_leg))
     expected_cashflow = NOTIONAL * (
-        1
+        np.exp(
+            -r * yearfrac(VALUATION_DATE, START_DATE, Daycount.ACT_360, Currency.USD)
+        )
         / np.exp(
             -r * yearfrac(VALUATION_DATE, OIS_END_DATE, Daycount.ACT_360, Currency.USD)
         )

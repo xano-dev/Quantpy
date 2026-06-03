@@ -6,6 +6,7 @@ from qp.utils.maps.rates.floating_indexes import FloatingIndex
 from qp.utils.maps.general.payreceive import PayReceive
 from qp.time.date.daycount import Daycount
 from qp.time.date.dateroll import Dateroll
+from qp.utils.maps.options.callput import CallPut
 
 
 class IRCap:
@@ -97,3 +98,33 @@ class IRCap:
     def _validate(self):
         if self._start_date >= self._end_date:
             raise ValueError("Start date cannot be greater than end date")
+
+        valid_indices = {
+            FloatingIndex.BBSW_1M,
+            FloatingIndex.BBSW_3M,
+            FloatingIndex.BBSW_6M,
+            FloatingIndex.BBSW_1Y,
+            FloatingIndex.BKBM_1M,
+            FloatingIndex.BKBM_3M,
+            FloatingIndex.BKBM_6M,
+            FloatingIndex.BKBM_1Y,
+            FloatingIndex.EURIBOR_1M,
+            FloatingIndex.EURIBOR_3M,
+            FloatingIndex.EURIBOR_6M,
+            FloatingIndex.EURIBOR_1Y,
+            FloatingIndex.TERM_SOFR_1M,
+            FloatingIndex.TERM_SOFR_3M,
+            FloatingIndex.TERM_SOFR_6M,
+            FloatingIndex.TERM_SOFR_1Y,
+        }
+
+        if self._index not in valid_indices:
+            raise ValueError(
+                f"Invalid Index. IRCap only supports IBOR Indices: {valid_indices}"
+            )
+
+    def pay_receive_to_call_put(self):
+        if self._pay_receive == PayReceive.RECEIVE:
+            return CallPut.CALL
+        else:
+            return CallPut.PUT

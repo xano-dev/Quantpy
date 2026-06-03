@@ -262,11 +262,13 @@ def test_base_payment_yearfracs_larger_than_accrual_when_payment_dates_later(
 
 
 def test_base_dataframe_shape(base):
-    assert base.to_dataframe().shape == (4, 4)
+    assert base.to_dataframe().shape == (4, 6)
 
 
 def test_base_dataframe_columns(base):
     assert list(base.to_dataframe().columns) == [
+        "Accrual Start Date",
+        "Accrual End Date",
         "Payment Date",
         "Accrual Yearfrac",
         "Payment Yearfrac",
@@ -566,11 +568,13 @@ def test_periodic_amounts_mismatch_raises():
 
 
 def test_periodic_dataframe_shape(periodic):
-    assert periodic.to_dataframe().shape == (4, 4)
+    assert periodic.to_dataframe().shape == (4, 6)
 
 
 def test_periodic_dataframe_columns(periodic):
     assert list(periodic.to_dataframe().columns) == [
+        "Accrual Start Date",
+        "Accrual End Date",
         "Payment Date",
         "Accrual Yearfrac",
         "Payment Yearfrac",

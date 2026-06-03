@@ -65,6 +65,10 @@ class CashFlowSchedule:
             else self._payment_dates
         )
 
+        self._accrual_start_dates = np.concatenate(
+            [np.array([self._start_date]), self._accrual_end_dates[:-1]]
+        )
+
         if not (
             len(self._cashflows)
             == len(self._payment_dates)
@@ -115,6 +119,10 @@ class CashFlowSchedule:
         return self._accrual_end_dates
 
     @property
+    def accrual_start_dates(self):
+        return self._accrual_start_dates
+
+    @property
     def payment_yearfracs(self):
         return self._payment_yearfracs
 
@@ -144,6 +152,8 @@ class CashFlowSchedule:
     def to_dataframe(self):
         return pd.DataFrame(
             {
+                "Accrual Start Date": self._accrual_start_dates,
+                "Accrual End Date": self._accrual_end_dates,
                 "Payment Date": self._payment_dates,
                 "Accrual Yearfrac": self._accrual_yearfracs,
                 "Payment Yearfrac": self._payment_yearfracs,
