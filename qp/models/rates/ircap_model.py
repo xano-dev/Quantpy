@@ -1,14 +1,15 @@
 import datetime as dt
+
 import numpy as np
 
-from qp.models.base_model import BaseModel
 from qp.curves.ir_curve import IRCurve
 from qp.instruments.rates.ir_cap import IRCap
+from qp.models.base_model import BaseModel
+from qp.models.options.black76 import black76
 from qp.time.cashflows.cashflow_schedule import PeriodicCashFlowSchedule
 from qp.time.date.daycount import yearfrac
-from qp.models.options.black76 import black76
-from qp.utils.maps.options.callput import CallPut
-from qp.utils.maps.general.payreceive import PayReceive
+from qp.time.date.holiday_helper import get_holidays
+from qp.utils.maps.rates.fixing_lags import FixingLags
 
 
 class IRCapModel(BaseModel):
@@ -69,11 +70,32 @@ class IRCapModel(BaseModel):
         ):
             floating_rates[0] = fixing
 
+        fixing_lag = FixingLags[ircap.index]
+
+        hols = get_holidays(
+            ircap.currency,
+            years=tuple(
+                np.array(schedule.accrual_start_dates, dtype="datetime64[Y]").astype(
+                    int
+                )
+                + 1970
+            ),
+        )
+
+        fixing_dates = np.busday_offset(
+            schedule.accrual_start_dates,
+            -fixing_lag,
+            holidays=[hol.isoformat() for hol in hols],
+            roll="preceding",  # fixing observed day before if start date is non-business day
+        )
+
         payoffs = black76(
             floating_rates,
             ircap.strike,
             yearfrac(
-                self._valuation_date, schedule.accrual_start_dates, ircap.daycount
+                self._valuation_date,
+                fixing_dates,
+                ircap.daycount,
             ),
             self._vol,
             ircap.pay_receive_to_call_put(),

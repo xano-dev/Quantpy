@@ -1,5 +1,6 @@
-from scipy.stats import norm
 import numpy as np
+from scipy.stats import norm
+
 from qp.utils.maps.options.callput import CallPut
 
 

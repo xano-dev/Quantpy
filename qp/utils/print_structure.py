@@ -22,7 +22,6 @@ def print_project_structure(root_dir, indent=""):
             print_project_structure(path, new_indent)
 
 
-# Usage: Run from your project root
 if __name__ == "__main__":
     print(f"{os.path.basename(os.getcwd())}/")
     print_project_structure(".")
