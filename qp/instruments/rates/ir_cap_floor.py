@@ -40,7 +40,7 @@ class IRCapFloor:
         self._pay_receive = PayReceive(pay_receive)
         self._index = index
         self._strike = strike
-        self._cap_floor = CapFloor
+        self._cap_floor = CapFloor(cap_floor)
         self._payment_lag = payment_lag
         self._dayroll = dayroll if dayroll is not None else end_date.day
 
@@ -130,8 +130,8 @@ class IRCapFloor:
                 f"Invalid Index. IRCapFloor only supports IBOR Indices: {valid_indices}"
             )
 
-    def pay_receive_to_call_put(self):
-        if self._pay_receive == PayReceive.RECEIVE:
+    def cap_floor_to_call_put(self):
+        if self._cap_floor == CapFloor.CAP:
             return CallPut.CALL
         else:
             return CallPut.PUT
