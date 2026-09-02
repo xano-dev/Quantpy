@@ -3,15 +3,15 @@ import datetime as dt
 import numpy as np
 
 from qp.curves.ir_curve import IRCurve
-from qp.instruments.rates.ir_cap import IRCapFloor
+from qp.instruments.rates.ir_cap_floor import IRCapFloor
 from qp.models.base_model import BaseModel
 from qp.models.options.black76 import black76
-from qp.time.cashflows.cashflow_schedule import PeriodicCashFlowSchedule
-from qp.time.date.daycount import yearfrac
-from qp.time.date.holiday_helper import get_holidays
-from qp.utils.maps.rates.fixing_lags import FixingLags
-from qp.utils.maps.rates.pay_receive import PayReceive
 from qp.models.options.intrinsic_value import compute_intrinsic_option_value
+from qp.time.cashflows.cashflow_schedule import PeriodicCashFlowSchedule
+from qp.time.date.daycount import Daycount, yearfrac
+from qp.time.date.holiday_helper import get_holidays
+from qp.utils.maps.general.payreceive import PayReceive
+from qp.utils.maps.rates.fixing_lags import FixingLags
 
 
 class IRCapFloorModel(BaseModel):
@@ -22,6 +22,7 @@ class IRCapFloorModel(BaseModel):
         floating_curve: IRCurve,
         historic_fixings: list[float] | np.ndarray | None,
         vol: float,
+        vol_dc_convention: Daycount
     ):
         self._valuation_date = valuation_date
         self._floating_curve = floating_curve
@@ -31,6 +32,7 @@ class IRCapFloorModel(BaseModel):
             else np.asarray(historic_fixings, dtype=float)
         )
         self._vol = vol
+        self._vol_dc_convention = vol_dc_convention
 
     def _validate(
         self,
@@ -149,7 +151,7 @@ class IRCapFloorModel(BaseModel):
             expiries = yearfrac(
                 self._valuation_date,
                 fixing_dates[future],
-                ircapfloor.daycount,
+                self._vol_dc_convention,
             )
 
             payoffs[future] = black76(
@@ -215,4 +217,5 @@ class IRCapFloorModel(BaseModel):
             curves["ir_curves"][0],
             self._historic_fixings,
             self._vol,
+            self._vol_dc_convention
         )

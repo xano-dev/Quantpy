@@ -1,13 +1,14 @@
 import datetime as dt
+
 import pytest
 
-from qp.instruments.rates.ir_cap import IRCap
+from qp.instruments.rates.ir_cap_floor import IRCapFloor
+from qp.time.date.dateroll import Dateroll
+from qp.time.date.daycount import Daycount
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.frequencies import Frequency
 from qp.utils.maps.general.payreceive import PayReceive
 from qp.utils.maps.rates.floating_indexes import FloatingIndex
-from qp.time.date.daycount import Daycount
-from qp.time.date.dateroll import Dateroll
 
 START_DATE = dt.date(2025, 1, 1)
 END_DATE = dt.date(2026, 1, 1)
@@ -15,8 +16,8 @@ NOTIONAL = 1_000_000
 STRIKE = 0.05
 
 
-def make_cap(start_date=START_DATE, end_date=END_DATE) -> IRCap:
-    return IRCap(
+def make_cap(start_date=START_DATE, end_date=END_DATE) -> IRCapFloor:
+    return IRCapFloor(
         currency=Currency.EUR,
         notional=NOTIONAL,
         start_date=start_date,
