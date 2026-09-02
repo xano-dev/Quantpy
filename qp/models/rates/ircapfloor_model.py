@@ -3,14 +3,16 @@ import datetime as dt
 import numpy as np
 
 from qp.curves.ir_curve import IRCurve
+from qp.curves.volatility.flat_vol import FlatVol
 from qp.instruments.rates.ir_cap_floor import IRCapFloor
 from qp.models.base_model import BaseModel
 from qp.models.options.black76 import black76
 from qp.models.options.intrinsic_value import compute_intrinsic_option_value
 from qp.time.cashflows.cashflow_schedule import PeriodicCashFlowSchedule
-from qp.time.date.daycount import Daycount, yearfrac
+from qp.time.date.daycount import yearfrac
 from qp.time.date.holiday_helper import get_holidays
 from qp.utils.maps.general.payreceive import PayReceive
+from qp.utils.maps.options.vol_type import VolType
 from qp.utils.maps.rates.fixing_lags import FixingLags
 
 
@@ -21,8 +23,7 @@ class IRCapFloorModel(BaseModel):
         valuation_date: dt.date,
         floating_curve: IRCurve,
         historic_fixings: list[float] | np.ndarray | None,
-        vol: float,
-        vol_dc_convention: Daycount
+        vol_obj: FlatVol,
     ):
         self._valuation_date = valuation_date
         self._floating_curve = floating_curve
@@ -31,12 +32,10 @@ class IRCapFloorModel(BaseModel):
             if historic_fixings is None
             else np.asarray(historic_fixings, dtype=float)
         )
-        self._vol = vol
-        self._vol_dc_convention = vol_dc_convention
+        self._vol_obj = vol_obj
 
     def _validate(
         self,
-        ircapfloor: IRCapFloor,
         schedule: PeriodicCashFlowSchedule,
         fixing_dates: np.ndarray,
     ):
@@ -92,7 +91,7 @@ class IRCapFloorModel(BaseModel):
         )
 
         fixing_dates = np.busday_offset(
-            schedule.accrual_start_dates,
+            [d.isoformat() for d in schedule.accrual_start_dates],
             -fixing_lag,
             holidays=[hol.isoformat() for hol in hols],
             roll="preceding",  # fixing observed day before if start date is non-business day
@@ -151,15 +150,16 @@ class IRCapFloorModel(BaseModel):
             expiries = yearfrac(
                 self._valuation_date,
                 fixing_dates[future],
-                self._vol_dc_convention,
+                self._vol_obj.vol_dc_convention,
             )
 
             payoffs[future] = black76(
                 floating_rates,
                 ircapfloor.strike,
                 expiries,
-                self._vol,
+                self._vol_obj.vol,
                 ircapfloor.cap_floor_to_call_put(),
+                self._vol_obj.displacement
             )
 
         sign = (
@@ -192,7 +192,6 @@ class IRCapFloorModel(BaseModel):
         )
 
         self._validate(
-            ircapfloor,
             schedule,
             fixing_dates,
         )
@@ -216,6 +215,5 @@ class IRCapFloorModel(BaseModel):
             self._valuation_date,
             curves["ir_curves"][0],
             self._historic_fixings,
-            self._vol,
-            self._vol_dc_convention
+            self._vol_obj
         )

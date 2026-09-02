@@ -5,8 +5,11 @@ from qp.utils.maps.options.callput import CallPut
 
 
 def black76(
-    F: np.ndarray, K: float, T: np.ndarray, sigma: float, option_type: CallPut
+    F: np.ndarray, K: float, T: np.ndarray, sigma: float, option_type: CallPut, displacement: float
 ) -> float:
+    
+    F += displacement
+    K += displacement
 
     if sigma == 0:
         return (
