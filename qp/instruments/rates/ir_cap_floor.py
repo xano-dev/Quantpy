@@ -7,9 +7,10 @@ from qp.utils.maps.general.payreceive import PayReceive
 from qp.time.date.daycount import Daycount
 from qp.time.date.dateroll import Dateroll
 from qp.utils.maps.options.callput import CallPut
+from qp.utils.maps.rates.cap_floor import CapFloor
 
 
-class IRCap:
+class IRCapFloor:
 
     def __init__(
         self,
@@ -24,6 +25,7 @@ class IRCap:
         pay_receive: PayReceive,  # RECEIVE = long cap (you receive payoffs)
         index: FloatingIndex,
         strike: float,
+        cap_floor: CapFloor,
         payment_lag: int = 0,
         dayroll: int | None = None,
     ):
@@ -38,6 +40,7 @@ class IRCap:
         self._pay_receive = PayReceive(pay_receive)
         self._index = index
         self._strike = strike
+        self._cap_floor = CapFloor
         self._payment_lag = payment_lag
         self._dayroll = dayroll if dayroll is not None else end_date.day
 
@@ -88,6 +91,10 @@ class IRCap:
         return self._strike
 
     @property
+    def cap_floor(self):
+        return self._cap_floor
+
+    @property
     def payment_lag(self):
         return self._payment_lag
 
@@ -120,7 +127,7 @@ class IRCap:
 
         if self._index not in valid_indices:
             raise ValueError(
-                f"Invalid Index. IRCap only supports IBOR Indices: {valid_indices}"
+                f"Invalid Index. IRCapFloor only supports IBOR Indices: {valid_indices}"
             )
 
     def pay_receive_to_call_put(self):
