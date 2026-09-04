@@ -1,11 +1,11 @@
-from scipy.optimize import brentq
 import numpy as np
+from scipy.optimize import brentq
 
-from qp.utils.maps.options.vol_type import VolType
-from qp.utils.maps.options.callput import CallPut
 from qp.models.options.bachelier import bachelier
 from qp.models.options.black76 import black76
-from qp.models.option_type.intrinsic_value import compute_intrinsic_option_value
+from qp.models.options.intrinsic_value import compute_intrinsic_option_value
+from qp.utils.maps.options.callput import CallPut
+from qp.utils.maps.options.vol_type import VolType
 
 
 def implied_vol(

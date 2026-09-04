@@ -1,8 +1,9 @@
 import numpy as np
 from scipy.stats import norm
 
+from qp.models.options.intrinsic_value import compute_intrinsic_option_value
 from qp.utils.maps.options.callput import CallPut
-from qp.models.option_type.intrinsic_value import compute_intrinsic_option_value
+
 
 def bachelier(
     F: np.ndarray, K: float, T: np.ndarray, sigma: float, option_type: CallPut
