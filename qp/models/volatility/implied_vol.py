@@ -9,19 +9,22 @@ from qp.models.option_type.intrinsic_value import compute_intrinsic_option_value
 
 
 def implied_vol(
-    prices: np.ndarray, F: np.ndarray, K: float, T: np.ndarray, option_type: CallPut, displacement: float, vol_type: VolType
+    prices: np.ndarray, F: np.ndarray, K: float | np.ndarray, T: np.ndarray, option_type: CallPut, displacement: float, vol_type: VolType
 ) -> np.ndarray:
 
-    if not (len(prices) == len(F) == len(T)):
-        raise ValueError("prices, F and T must have the same length.")
+    if np.isscalar(K):
+        K = np.full(len(prices), K)
+
+    if not (len(prices) == len(F) == len(T) == len(K)):
+        raise ValueError("prices, F, T, and K must have the same length.")
 
     solved_vols = []
 
-    for price, forward_price, time in zip(prices, F, T):
+    for price, forward_price, time, strike in zip(prices, F, T, K):
         if vol_type == VolType.SHIFTED_LOGNORMAL:
-            solved_vol = implied_vol_black76(price, forward_price, K, time, option_type, displacement)
+            solved_vol = implied_vol_black76(price, forward_price, strike, time, option_type, displacement)
         elif vol_type == VolType.NORMAL:
-            solved_vol = implied_vol_bachelier(price, forward_price, K, time, option_type)
+            solved_vol = implied_vol_bachelier(price, forward_price, strike, time, option_type)
         else:
             raise ValueError(f"Unsupported volatility type: {vol_type}")
 
