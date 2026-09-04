@@ -110,7 +110,7 @@ class Interpolator:
                     self._x, self._y, extrapolate=self._extrapolate
                 )
 
-    def interpolate(self, x: float | list[float]):
+    def interpolate(self, x: float | np.ndarray):
         if not self._extrapolate:
             if np.any(x < self._x[0]) or np.any(x > self._x[-1]):
                 raise ValueError(f"{x} is outside interpolation range")
