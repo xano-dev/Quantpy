@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from qp.curves.ir_curve import IRCurve
+from qp.curves.volatility.flat_vol import FlatVol
 from qp.instruments.rates.ir_cap_floor import IRCapFloor
 from qp.models.rates.ircapfloor_model import IRCapFloorModel
 from qp.time.date.dateroll import Dateroll
@@ -11,10 +12,14 @@ from qp.time.date.daycount import Daycount
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.frequencies import Frequency
 from qp.utils.maps.general.payreceive import PayReceive
+from qp.utils.maps.rates.cap_floor import CapFloor
 from qp.utils.maps.rates.floating_indexes import FloatingIndex
 
 VALUATION_DATE = dt.date(2026, 6, 1)
-START_DATE = dt.date(2026, 6, 3)  # spot-starting T+2
+# T+2 fixing lag off a T+2 start lands the first fixing exactly on valuation
+# date, which the model treats as already fixed (inclusive <=). Start one
+# business day later so every caplet's fixing is genuinely in the future.
+START_DATE = dt.date(2026, 6, 4)
 END_DATE_2Y = dt.date(2028, 6, 3)
 NOTIONAL = 10_000_000
 STRIKE = 0.05
@@ -34,6 +39,7 @@ def make_ir_cap(**kwargs):
         pay_receive=PayReceive.RECEIVE,  # long cap
         index=FloatingIndex.TERM_SOFR_3M,
         strike=STRIKE,
+        cap_floor=CapFloor.CAP,
     )
     return IRCapFloor(**{**defaults, **kwargs})
 
@@ -53,14 +59,14 @@ def make_ir_curve(discount_factors):
     )
 
 
-def make_model(curve=None, historic_fixing=None, vol=VOL, **kwargs):
+def make_model(curve=None, historic_fixings=None, vol=VOL, **kwargs):
     if curve is None:
         curve = make_ir_curve([0.99, 0.98, 0.97, 0.96, 0.95, 0.94, 0.93, 0.92])
     defaults = dict(
         valuation_date=VALUATION_DATE,
         floating_curve=curve,
-        historic_fixing=historic_fixing,
-        vol=vol,
+        historic_fixings=historic_fixings,
+        vol_obj=FlatVol(vol=vol, vol_dc_convention=Daycount.ACT_360),
     )
     return IRCapFloorModel(**{**defaults, **kwargs})
 
@@ -72,7 +78,7 @@ def test_raises_if_seasoned_cap_has_no_historic_fixing():
     """start_date at/before valuation with historic_fixing=None should raise."""
     cap = make_ir_cap(start_date=dt.date(2025, 1, 1), end_date=dt.date(2027, 1, 1))
     with pytest.raises(ValueError):
-        make_model(historic_fixing=None).price(cap)
+        make_model(historic_fixings=None).price(cap)
 
 
 # --- Pricing ---

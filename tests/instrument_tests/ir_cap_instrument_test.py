@@ -8,6 +8,7 @@ from qp.time.date.daycount import Daycount
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.frequencies import Frequency
 from qp.utils.maps.general.payreceive import PayReceive
+from qp.utils.maps.rates.cap_floor import CapFloor
 from qp.utils.maps.rates.floating_indexes import FloatingIndex
 
 START_DATE = dt.date(2025, 1, 1)
@@ -29,6 +30,7 @@ def make_cap(start_date=START_DATE, end_date=END_DATE) -> IRCapFloor:
         pay_receive=PayReceive.RECEIVE,
         index=FloatingIndex.EURIBOR_3M,
         strike=STRIKE,
+        cap_floor=CapFloor.CAP,
     )
 
 
