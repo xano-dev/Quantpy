@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import norm
 
 from qp.utils.maps.options.callput import CallPut
-
+from qp.models.option_type.intrinsic_value import compute_intrinsic_option_value
 
 def bachelier(
     F: np.ndarray, K: float, T: np.ndarray, sigma: float, option_type: CallPut
@@ -15,11 +15,7 @@ def bachelier(
         raise ValueError("Time to expiry must be greater than zero.")
 
     if sigma == 0:
-        return (
-            np.maximum(F - K, 0)
-            if option_type == CallPut.CALL
-            else np.maximum(K - F, 0)
-        )
+        return compute_intrinsic_option_value(F, K, option_type)
     
     std_dev = sigma * np.sqrt(T)
     d = (F - K) / std_dev

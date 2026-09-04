@@ -7,6 +7,7 @@ from qp.curves.volatility.flat_vol import FlatVol
 from qp.instruments.rates.ir_cap_floor import IRCapFloor
 from qp.models.base_model import BaseModel
 from qp.models.options.black76 import black76
+from qp.models.options.bachelier import bachelier
 from qp.models.options.intrinsic_value import compute_intrinsic_option_value
 from qp.time.cashflows.cashflow_schedule import PeriodicCashFlowSchedule
 from qp.time.date.daycount import yearfrac
@@ -124,7 +125,7 @@ class IRCapFloorModel(BaseModel):
                 ircapfloor.cap_floor_to_call_put(),
             )
 
-        # for future caplets/floorlets derive forward rates and value using Black76
+        # for future caplets/floorlets derive forward rates and value using the selected volatility model
         if np.any(future):
             start_dfs = curve.get_discount_factors(
                 yearfrac(
@@ -153,14 +154,29 @@ class IRCapFloorModel(BaseModel):
                 self._vol_obj.vol_dc_convention,
             )
 
-            payoffs[future] = black76(
-                floating_rates,
-                ircapfloor.strike,
-                expiries,
-                self._vol_obj.vol,
-                ircapfloor.cap_floor_to_call_put(),
-                self._vol_obj.displacement
-            )
+            if self._vol_obj.vol_type == VolType.SHIFTED_LOGNORMAL:
+                payoffs[future] = black76(
+                    floating_rates,
+                    ircapfloor.strike,
+                    expiries,
+                    self._vol_obj.vol,
+                    ircapfloor.cap_floor_to_call_put(),
+                    self._vol_obj.displacement,
+                )
+
+            elif self._vol_obj.vol_type == VolType.NORMAL:
+                payoffs[future] = bachelier(
+                    floating_rates,
+                    ircapfloor.strike,
+                    expiries,
+                    self._vol_obj.vol,
+                    ircapfloor.cap_floor_to_call_put(),
+                )
+
+            else:
+                raise ValueError(
+                    f"Unsupported volatility type: {self._vol_obj.vol_type}"
+                )
 
         sign = (
             1

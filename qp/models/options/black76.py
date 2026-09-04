@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import norm
 
 from qp.utils.maps.options.callput import CallPut
-
+from qp.models.option_type.intrinsic_value import compute_intrinsic_option_value
 
 def black76(
     F: np.ndarray, K: float, T: np.ndarray, sigma: float, option_type: CallPut, displacement: float
@@ -24,11 +24,7 @@ def black76(
         raise ValueError("Time to expiry must be greater than zero.")
 
     if sigma == 0:
-        return (
-            np.maximum(F - K, 0)
-            if option_type == CallPut.CALL
-            else np.maximum(K - F, 0)
-        )
+        return compute_intrinsic_option_value(F, K, option_type)
 
     d2 = (np.log(shifted_F / shifted_K) - (sigma**2 / 2) * T) / (sigma * np.sqrt(T))
 
