@@ -6,10 +6,22 @@ from qp.utils.maps.options.callput import CallPut
 
 def black76(
     F: np.ndarray, K: float, T: np.ndarray, sigma: float, option_type: CallPut, displacement: float
-) -> float:
+) -> np.ndarray:
     
-    F += displacement
-    K += displacement
+    shifted_F = F + displacement
+    shifted_K = K + displacement
+
+    if np.any(shifted_F <= 0):
+        raise ValueError("F + displacement must be greater than zero.")
+
+    if shifted_K <= 0:
+        raise ValueError("K + displacement must be greater than zero.")
+    
+    if sigma < 0:
+        raise ValueError("Volatility cannot be negative.")
+    
+    if np.any(T <= 0):
+        raise ValueError("Time to expiry must be greater than zero.")
 
     if sigma == 0:
         return (
@@ -18,12 +30,12 @@ def black76(
             else np.maximum(K - F, 0)
         )
 
-    d2 = (np.log(F / K) - (sigma**2 / 2) * T) / (sigma * np.sqrt(T))
+    d2 = (np.log(shifted_F / shifted_K) - (sigma**2 / 2) * T) / (sigma * np.sqrt(T))
 
     d1 = d2 + (sigma * np.sqrt(T))
 
     return (
-        F * norm.cdf(d1) - K * norm.cdf(d2)
+        shifted_F * norm.cdf(d1) - shifted_K * norm.cdf(d2)
         if option_type == CallPut.CALL
-        else K * norm.cdf(-d2) - F * norm.cdf(-d1)
+        else shifted_K * norm.cdf(-d2) - shifted_F * norm.cdf(-d1)
     )
