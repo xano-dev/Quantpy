@@ -2,6 +2,7 @@ import datetime as dt
 
 import numpy as np
 import pytest
+from dateutil.relativedelta import relativedelta
 
 from qp.curves.ir_curve import IRCurve
 from qp.curves.volatility.flat_vol import FlatVol
@@ -12,6 +13,7 @@ from qp.time.date.daycount import Daycount
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.frequencies import Frequency
 from qp.utils.maps.general.payreceive import PayReceive
+from qp.utils.maps.options.vol_type import VolType
 from qp.utils.maps.rates.cap_floor import CapFloor
 from qp.utils.maps.rates.floating_indexes import FloatingIndex
 
@@ -24,6 +26,7 @@ END_DATE_2Y = dt.date(2028, 6, 3)
 NOTIONAL = 10_000_000
 STRIKE = 0.05
 VOL = 0.20
+SHIFT = 0.03
 
 
 def make_ir_cap(**kwargs):
@@ -80,105 +83,214 @@ def test_raises_if_seasoned_cap_has_no_historic_fixing():
     with pytest.raises(ValueError):
         make_model(historic_fixings=None).price(cap)
 
-
-# --- Pricing ---
-
-
-def test_price_returns_schedule_with_cashflows():
-    cap = make_ir_cap()
-    schedule = make_model().price(cap)
-    # TODO: assert schedule shape — how many caplets do you expect for a 2y
-    # quarterly cap, and should every period carry a non-negative cashflow?
-    assert ...
-
-
-def test_cap_pv_is_sum_of_caplet_payoffs():
-    """Total undiscounted cap amount == sum of individual caplet amounts."""
-    cap = make_ir_cap()
-    schedule = make_model().price(cap)
-    # TODO: what is the relationship you expect between schedule.amounts and
-    # the per-caplet Black-76 values? Fill in the expected aggregate.
-    assert ...
-
-
-def test_receive_vs_pay_caplet_direction():
-    """RECEIVE -> call on the rate (cap); PAY -> put on the rate (floor)."""
-    receive = make_model().price(make_ir_cap(pay_receive=PayReceive.RECEIVE))
-    pay = make_model().price(make_ir_cap(pay_receive=PayReceive.PAY))
-    # TODO: what relationship between the two sets of amounts encodes the
-    # call-vs-put switch? (Think about which is larger when forwards > strike.)
-    assert ...
-
-
-# --- QuantLib validation (Tier 1 oracle) ---
+# --- QuantLib validation ---
 
 
 def test_cap_matches_quantlib_black_engine():
-    """Tier-1: caplet-by-caplet undiscounted amounts vs QuantLib BlackCapFloorEngine.
+    """caplet-by-caplet undiscounted amounts vs QuantLib BlackCapFloorEngine."""
+    ql = pytest.importorskip("QuantLib")
 
-    Strategy: create one single-period QL CapFloor per caplet, price each with
-    BlackCapFloorEngine using the same flat vol and discount curve, then divide
-    the QL NPV by the discount factor to the payment date to recover the
-    undiscounted caplet amount. Compare to schedule.amounts[i].
+    DFS = [0.99, 0.98, 0.97, 0.96, 0.95, 0.94, 0.93, 0.92]
+    curve = make_ir_curve(DFS)
+    cap = make_ir_cap()
+    schedule = make_model(curve=curve).price(cap)
 
-    Identity:
-        ql_single_caplet_npv[i] / df(0, T_pay[i])  ≈  schedule.amounts[i]
-    """
+    ql.Settings.instance().evaluationDate = ql.Date(
+        VALUATION_DATE.day, VALUATION_DATE.month, VALUATION_DATE.year
+    )
+
+    discount_factors = [1] + DFS
+    dates = [
+        ql.Date(date.day, date.month, date.year)
+        for date in [
+            VALUATION_DATE + dt.timedelta(days=tenor * 360) for tenor in curve.tenors
+        ]
+    ]
+    day_counter = ql.Actual360()
+    discount_curve = ql.DiscountCurve(dates, discount_factors, day_counter)
+    discount_curve.enableExtrapolation()
+    discount_handle = ql.YieldTermStructureHandle(discount_curve)
+
+    start_date = ql.Date(START_DATE.day, START_DATE.month, START_DATE.year)
+    end_date = ql.Date(END_DATE_2Y.day, END_DATE_2Y.month, END_DATE_2Y.year)
+
+    ql_schedule = ql.Schedule(
+        start_date,
+        end_date,
+        ql.Period(3, ql.Months),
+        ql.UnitedStates(ql.UnitedStates.NYSE),
+        ql.ModifiedFollowing,
+        ql.ModifiedFollowing,
+        ql.DateGeneration.Backward,
+        False,
+    )
+
+    index = ql.IborIndex(
+        "MyIndex",
+        ql.Period("3m"),
+        2,
+        ql.USDCurrency(),
+        ql.UnitedStates(ql.UnitedStates.NYSE),
+        ql.ModifiedFollowing,
+        False,
+        ql.Actual360(),
+        discount_handle,
+    )
+
+    ibor_leg = ql.IborLeg([NOTIONAL], ql_schedule, index)
+    cap_discount = ql.Cap(ibor_leg, [STRIKE])
+
+    volatility = ql.QuoteHandle(ql.SimpleQuote(VOL))
+    engine = ql.BlackCapFloorEngine(discount_handle, volatility, ql.Actual360(), 0.0)
+    cap_discount.setPricingEngine(engine)
+
+    ql_prices = np.array(cap_discount.optionletsPrice())
+    ql_discount_factors = np.array(cap_discount.optionletsDiscountFactor())
+    ql_undiscounted = ql_prices / ql_discount_factors
+
+    assert ql_undiscounted == pytest.approx(schedule.cashflows, abs=1e-6)
+
+
+def test_cap_matches_quantlib_bachelier_engine():
+    """caplet-by-caplet undiscounted amounts vs QuantLib's normal-vol cap engine."""
     ql = pytest.importorskip("QuantLib")  # noqa: F841
 
     DFS = [0.99, 0.98, 0.97, 0.96, 0.95, 0.94, 0.93, 0.92]
     curve = make_ir_curve(DFS)
     cap = make_ir_cap()
-    schedule = make_model(curve=curve).price(cap)  # noqa: F841
+    vol_obj = FlatVol(
+        vol=VOL,
+        vol_dc_convention=Daycount.ACT_360,
+        vol_type=VolType.NORMAL,
+    )
+    schedule = make_model(curve=curve, vol_obj=vol_obj).price(cap)
 
-    # TODO: set the QL valuation date to match VALUATION_DATE
+    ql.Settings.instance().evaluationDate = ql.Date(
+        VALUATION_DATE.day, VALUATION_DATE.month, VALUATION_DATE.year
+    )
 
-    # TODO: build a flat QL discount curve from the same DFS / tenors
-    #   (DiscountCurve or FlatForward — your choice, but the discount factors
-    #   must match exactly so the forward rates agree)
+    discount_factors = [1] + DFS
+    dates = [
+        ql.Date(date.day, date.month, date.year)
+        for date in [
+            VALUATION_DATE + dt.timedelta(days=tenor * 360) for tenor in curve.tenors
+        ]
+    ]
+    day_counter = ql.Actual360()
+    discount_curve = ql.DiscountCurve(dates, discount_factors, day_counter)
+    discount_curve.enableExtrapolation()
+    discount_handle = ql.YieldTermStructureHandle(discount_curve)
 
-    # TODO: build the QL SOFR/IBOR index using the same curve
+    start_date = ql.Date(START_DATE.day, START_DATE.month, START_DATE.year)
+    end_date = ql.Date(END_DATE_2Y.day, END_DATE_2Y.month, END_DATE_2Y.year)
 
-    # TODO: loop over schedule.accrual_start_dates and accrual_end_dates:
-    #   for i, (t_start, t_end) in enumerate(zip(..., ...)):
-    #       - construct a 1-period ql.CapFloor for caplet i
-    #         (start=t_start, end=t_end, strike=STRIKE, notional=NOTIONAL)
-    #       - attach a BlackCapFloorEngine with flat vol=VOL
-    #       - ql_npv = caplet.NPV()
-    #       - df_payment = curve.get_discount_factors(yearfrac to t_end)
-    #       - ql_undiscounted = ql_npv / df_payment
-    #       - assert ql_undiscounted == pytest.approx(schedule.amounts[i], abs=?)
+    ql_schedule = ql.Schedule(
+        start_date,
+        end_date,
+        ql.Period(3, ql.Months),
+        ql.UnitedStates(ql.UnitedStates.NYSE),
+        ql.ModifiedFollowing,
+        ql.ModifiedFollowing,
+        ql.DateGeneration.Backward,
+        False,
+    )
 
-    assert ...
+    index = ql.IborIndex(
+        "MyIndex",
+        ql.Period("3m"),
+        2,
+        ql.USDCurrency(),
+        ql.UnitedStates(ql.UnitedStates.NYSE),
+        ql.ModifiedFollowing,
+        False,
+        ql.Actual360(),
+        discount_handle,
+    )
+
+    ibor_leg = ql.IborLeg([NOTIONAL], ql_schedule, index)
+    cap_discount = ql.Cap(ibor_leg, [STRIKE])
+
+    volatility = ql.ConstantOptionletVolatility(
+        0, ql.NullCalendar(), ql.ModifiedFollowing, VOL, ql.Actual360(), ql.Normal
+    )
+    engine = ql.BachelierCapFloorEngine(
+        discount_handle, ql.OptionletVolatilityStructureHandle(volatility)
+    )
+    cap_discount.setPricingEngine(engine)
+
+    ql_prices = np.array(cap_discount.optionletsPrice())
+    ql_discount_factors = np.array(cap_discount.optionletsDiscountFactor())
+    ql_undiscounted = ql_prices / ql_discount_factors
+
+    assert ql_undiscounted == pytest.approx(schedule.cashflows, abs=1e-6)
 
 
-# --- Limiting cases (Tier 2 internal correctness) ---
+def test_cap_matches_quantlib_shifted_black_engine():
+    """Tier-1: caplet-by-caplet undiscounted amounts vs QuantLib's shifted Black-76 cap engine (displacement != 0)."""
+    ql = pytest.importorskip("QuantLib")  # noqa: F841
 
-
-def test_zero_vol_collapses_to_intrinsic():
-    """vol -> 0: each caplet payoff -> max(F - K, 0) (call) on the rate."""
+    DFS = [0.99, 0.98, 0.97, 0.96, 0.95, 0.94, 0.93, 0.92]
+    curve = make_ir_curve(DFS)
     cap = make_ir_cap()
-    schedule = make_model(vol=0.0).price(cap)  # noqa: F841
-    # TODO: with vol=0 the Black-76 value is the intrinsic on each forward.
-    # Reconstruct the expected per-period amounts from the curve's implied
-    # forwards and assert equality.
-    assert ...
+    vol_obj = FlatVol(
+        vol=VOL,
+        vol_dc_convention=Daycount.ACT_360,
+        vol_type=VolType.SHIFTED_LOGNORMAL,
+        displacement=SHIFT,
+    )
+    schedule = make_model(curve=curve, vol_obj=vol_obj).price(cap)
 
+    ql.Settings.instance().evaluationDate = ql.Date(
+        VALUATION_DATE.day, VALUATION_DATE.month, VALUATION_DATE.year
+    )
 
-def test_deep_itm_cap_approaches_forward_minus_strike():
-    """Very low strike => cap behaves like paying (F - K) every period."""
-    cap = make_ir_cap(strike=1e-6)
-    schedule = make_model().price(cap)  # noqa: F841
-    # TODO: what should each caplet amount approach as the cap goes deep ITM?
-    assert ...
+    discount_factors = [1] + DFS
+    dates = [
+        ql.Date(date.day, date.month, date.year)
+        for date in [
+            VALUATION_DATE + dt.timedelta(days=tenor * 360) for tenor in curve.tenors
+        ]
+    ]
+    day_counter = ql.Actual360()
+    discount_curve = ql.DiscountCurve(dates, discount_factors, day_counter)
+    discount_curve.enableExtrapolation()
+    discount_handle = ql.YieldTermStructureHandle(discount_curve)
 
+    start_date = ql.Date(START_DATE.day, START_DATE.month, START_DATE.year)
+    end_date = ql.Date(END_DATE_2Y.day, END_DATE_2Y.month, END_DATE_2Y.year)
 
-def test_cap_floor_parity():
-    """cap(K) - floor(K) == payer-swap-style (F - K) leg, period by period."""
-    cap = make_model().price(make_ir_cap(pay_receive=PayReceive.RECEIVE))  # noqa: F841
-    floor = make_model().price(make_ir_cap(pay_receive=PayReceive.PAY))  # noqa: F841
-    # TODO: the parity identity is independent of vol. Express the expected
-    # cap.amounts - floor.amounts in terms of the forwards, strike, year
-    # fractions and notional, and assert it.
-    assert ...
-    assert ...
+    ql_schedule = ql.Schedule(
+        start_date,
+        end_date,
+        ql.Period(3, ql.Months),
+        ql.UnitedStates(ql.UnitedStates.NYSE),
+        ql.ModifiedFollowing,
+        ql.ModifiedFollowing,
+        ql.DateGeneration.Backward,
+        False,
+    )
+
+    index = ql.IborIndex(
+        "MyIndex",
+        ql.Period("3m"),
+        2,
+        ql.USDCurrency(),
+        ql.UnitedStates(ql.UnitedStates.NYSE),
+        ql.ModifiedFollowing,
+        False,
+        ql.Actual360(),
+        discount_handle,
+    )
+
+    ibor_leg = ql.IborLeg([NOTIONAL], ql_schedule, index)
+    cap_discount = ql.Cap(ibor_leg, [STRIKE])
+
+    volatility = ql.QuoteHandle(ql.SimpleQuote(VOL))
+    engine = ql.BlackCapFloorEngine(discount_handle, volatility, ql.Actual360(), SHIFT)
+    cap_discount.setPricingEngine(engine)
+
+    ql_prices = np.array(cap_discount.optionletsPrice())
+    ql_discount_factors = np.array(cap_discount.optionletsDiscountFactor())
+    ql_undiscounted = ql_prices / ql_discount_factors
+
+    assert ql_undiscounted == pytest.approx(schedule.cashflows, abs=1e-6)
