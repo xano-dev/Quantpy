@@ -161,4 +161,4 @@ PV (discounted): USD 79,782.69
 
 ### What's next
 
-Caps/floors are done, European swaptions (Black on the forward swap rate) and FX vanilla (Garman-Kohlhagen) are next to complete the options phase, followed by a minimal vol surface and short-rate models moving from one-factor Hull-White to the two-factor G2++, building toward a Bermudan swaption model-comparison study as the first milestone. Each new pricer ships with its risk sensitivities and is checked against closed-form results and QuantLib.
+Caps/floors are done, European swaptions (Black on the forward swap rate), FX vanilla (Garman-Kohlhagen), and Vega greek are next to complete the options phase, followed by a minimal vol surface and short-rate models moving from one-factor Hull-White to the two-factor G2++, building toward a Bermudan swaption model-comparison study as the first milestone. Each new pricer ships with its risk sensitivities and is checked against closed-form results and QuantLib.
