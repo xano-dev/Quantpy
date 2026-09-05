@@ -170,7 +170,6 @@ class IRCurve:
                 where=(self._tenors != 0),
                 out=np.full(len(discount_factors), np.nan),
             )
-            # else -np.log(discount_factors) / self._tenors
         )
 
         return np.array(rates)
@@ -179,17 +178,25 @@ class IRCurve:
         raise NotImplementedError("Bootstrapper not yet implemented")
 
     def _ensure_correct_tenors_dfs(self):
+        inserted_tenor = False
+        
         if self._tenors[0] != 0:
             warnings.warn(
                 f"WARNING: first tenor is {self._tenors[0]} (not zero), inserting zero as first tenor"
             )
             self._tenors = np.insert(self._tenors, 0, 0)
+            
+            inserted_tenor = True
 
         if self._discount_factors[0] != 1:
             warnings.warn(
                 f"WARNING: first discount factor is {self._discount_factors[0]} (not one), inserting one as first discount factor"
             )
-            self._discount_factors = np.insert(self._discount_factors, 0, 1)
+            
+            if inserted_tenor:
+                self._discount_factors = np.insert(self._discount_factors, 0, 1)
+            else:
+                self._discount_factors[0] = 1
 
     def get_discount_factors(self, tenors: float | np.ndarray) -> float | np.ndarray:
         return self._interpolator.interpolate(tenors)
@@ -207,7 +214,7 @@ class IRCurve:
         shock_array = np.array(shock)
 
         if shock_array.size != 1 and (shock_array.size != self._tenors.size):
-            raise ValueError("Number of bumps equal to number of interest rates for ")
+            raise ValueError("Number of bumps is not equal to number of interest rates for pillar-wise shock")
 
         return IRCurve(
             at_date=self._at_date,
