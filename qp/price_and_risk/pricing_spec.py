@@ -1,11 +1,11 @@
-from qp.curves.ir_curve import IRCurve
+from dataclasses import dataclass, field
+
 from qp.curves.fx_curve import FXCurve
+from qp.curves.ir_curve import IRCurve
 from qp.instruments.fx.fx_forward import FXForward
 from qp.instruments.rates.irs import IRS
 from qp.models.fx.fx_forward_model import FXForwardModel
 from qp.models.rates.irs_model import IRSModel
-
-from dataclasses import dataclass, field
 
 
 @dataclass
@@ -13,10 +13,8 @@ class PricingSpec:
     """Specification bundling a model, instrument, and curves required to price it.
 
     Args:
-        model: Pricing model to apply, either `FXForwardModel` or
-            `IRSModel`.
-        instrument: The instrument to price, either `FXForward` or
-            `IRS`.
+        model: Pricing model to apply
+        instrument: The instrument to price
         ir_curve: Interest rate curve used to compute discount factors,
             denominated in the collateral currency.
         fx_curves: List of FX curves, one per cashflow schedule produced by

@@ -8,8 +8,9 @@ from qp.curves.ir_curve import IRCurve
 from qp.curves.volatility.flat_vol import FlatVol
 from qp.instruments.rates.ir_cap_floor import IRCapFloor
 from qp.models.rates.ircapfloor_model import IRCapFloorModel
+from qp.time.cashflows.cashflow_schedule import PeriodicCashFlowSchedule
 from qp.time.date.dateroll import Dateroll
-from qp.time.date.daycount import Daycount
+from qp.time.date.daycount import Daycount, yearfrac
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.frequencies import Frequency
 from qp.utils.maps.general.payreceive import PayReceive
@@ -294,3 +295,69 @@ def test_cap_matches_quantlib_shifted_black_engine():
     ql_undiscounted = ql_prices / ql_discount_factors
 
     assert ql_undiscounted == pytest.approx(schedule.cashflows, abs=1e-6)
+
+
+# --- Internal consistency ---
+
+
+def test_cap_floor_put_call_parity():
+    """cap minus floor at the same strike is model-independent.
+
+    max(F-K, 0) - max(K-F, 0) == F-K holds state-by-state (case split on
+    F > K, F < K, F == K), so it survives taking an expectation under any vol
+    model since the vol cancels between the two sides entirely. This should hold
+    regardless of vol_type/vol level.
+
+
+    i.e., undiscounted we expect: cap_cashflow[i] - floor_cashflow[i] == (F_i - STRIKE) * accrual_yearfrac[i] * NOTIONAL
+    """
+    DFS = [0.99, 0.98, 0.97, 0.96, 0.95, 0.94, 0.93, 0.92]
+    curve = make_ir_curve(DFS)
+    cap = make_ir_cap(cap_floor=CapFloor.CAP)
+    floor = make_ir_cap(cap_floor=CapFloor.FLOOR)
+
+    model = make_model(curve=curve)
+    cap_schedule = model.price(cap)
+    floor_schedule = model.price(floor)
+
+    schedule = PeriodicCashFlowSchedule(
+            cap_schedule.start_date,
+            cap_schedule.end_date,
+            Frequency.QUARTERLY,
+            cap_schedule.currency,
+            cap_schedule.daycount,
+            cap_schedule.dateroll,
+            None,
+            cap_schedule.dayroll,
+            cap_schedule.collateral_currency,
+            cap_schedule.payment_lag,
+        )
+
+    start_dfs = curve.get_discount_factors(
+        yearfrac(
+            curve.at_date,
+            schedule.accrual_start_dates,
+            curve.daycount,
+        )
+    )
+
+    end_dfs = curve.get_discount_factors(
+        yearfrac(
+            curve.at_date,
+            schedule.accrual_end_dates,
+            curve.daycount,
+        )
+    )
+
+    F = (
+        (start_dfs / end_dfs - 1)
+        / schedule.accrual_yearfracs_periodic
+    )
+
+    expected_diff = []
+
+    for f, yf in zip(F, schedule.accrual_yearfracs_periodic):
+        expected_diff.append((f - STRIKE) * yf * NOTIONAL)
+
+    expected_diff = np.array(expected_diff)
+    assert (cap_schedule.cashflows - floor_schedule.cashflows) == pytest.approx(expected_diff, abs=1e-10)

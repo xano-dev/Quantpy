@@ -1,6 +1,6 @@
 # Quantpy
 
-A derivatives pricing library for interest rates and FX, built from scratch in Python with no third-party pricing libraries. 237 passing tests.
+A derivatives pricing library for interest rates and FX, built from scratch in Python with no third-party pricing libraries. 242 passing tests.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ graph TD
 - **`instruments/`** - contract definition: dates, notionals, currency, payoff structure. No pricing logic, no market data.
 - **`curves/`** - IR discount curves and FX rate curves with configurable interpolation.
 - **`time/`** - day count conventions, date rolling, holiday calendars, cashflow scheduling.
-- **`models/`** - pricing logic; always returns undiscounted `CashFlowSchedule` objects.
+- **`models/`** - pricing logic, always returns undiscounted `CashFlowSchedule` objects.
 - **`price_and_risk/`** - discounting, FX conversion, and Greeks via bump-and-reprice.
 
 ## Coverage
@@ -44,9 +44,9 @@ PV:                  USD 12,301.67
 
 - **Fixed leg** - coupon = notional × rate × accrual yearfrac
 - **Floating leg** - forward rates implied from consecutive discount factor ratios
-- **OIS leg** - each overnight fixing compounds into the period cashflow; `lookback` is an observation lag (the fixing for day d uses the rate published d − lookback business days prior). For fully forward periods the daily compounding telescopes exactly to the single-period discount factor ratio, so daily iteration only matters when historic and forward-projected rates mix within a live period
+- **OIS leg** - each overnight fixing compounds into the period cashflow, `lookback` is an observation lag (the fixing for day d uses the rate published d − lookback business days prior). For fully forward periods the daily compounding telescopes exactly to the single-period discount factor ratio, so daily iteration only matters when historic and forward-projected rates mix within a live period
 - **Seasoned swaps** - first period rate replaced with a historic fixing when valuation date is past the start
-- **CCIRS** - `fx_curves` is a per-leg list; set `None` for any leg already in the collateral currency
+- **CCIRS** - `fx_curves` is a per-leg list, set `None` for any leg already in the collateral currency
 
 Full examples: [examples/irs.py](examples/irs.py) | [examples/ccirs.py](examples/ccirs.py)
 
@@ -98,36 +98,67 @@ USD float leg cashflows (undiscounted):
 PV (discounted): USD -47,724.19
 ```
 
+### Interest Rate Caps / Floors
+
+Caplets/floorlets priced against a forward curve, switchable between shifted lognormal (Black-76) and normal (Bachelier) volatility. Each caplet's forward rate is derived from consecutive discount factor ratios, already-fixed-but-unsettled caplets use the historic fixing's intrinsic value instead. Validated caplet-by-caplet against QuantLib's `BlackCapFloorEngine` and `BachelierCapFloorEngine` (displacement included) to tight tolerance, plus a model-independent put-call parity check. Full example: [examples/ir_cap_floor.py](examples/ir_cap_floor.py)
+
+```python
+model = IRCapFloorModel(valuation_date=..., floating_curve=curve, vol_obj=FlatVol(vol=0.20, vol_dc_convention=Daycount.ACT_360))
+spec = PricingSpec(model=model, instrument=cap, discount_curve=curve)
+result = DCFPricer(spec).discount_cashflows()
+```
+
+```
+Caplet cashflows (undiscounted):
+  2026-09-03  USD 12,777.78
+  2026-12-03  USD  6,942.94
+  2027-03-03  USD  8,824.60
+  2027-06-03  USD 10,448.57
+  2027-09-03  USD  9,685.37
+  2027-12-03  USD 10,770.65
+  2028-03-03  USD 11,837.89
+  2028-06-05  USD 13,414.31
+
+PV (discounted): USD 79,782.69
+```
+
 ## Implementation
 
 ### `time/`
-- [x] Day count conventions - ACT/360, ACT/365, 30/360, 30/365, BUS/252; scalar, array, and paired start/end array inputs
-- [x] Date rolling - Modified Following, Modified Preceding, Following, Preceding; holiday-aware payment lag
+
+- [x] Day count conventions - ACT/360, ACT/365, 30/360, 30/365, BUS/252, scalar, array, and paired start/end array inputs
+- [x] Date rolling - Modified Following, Modified Preceding, Following, Preceding, holiday-aware payment lag
 - [x] Holiday calendars
-- [x] Cashflow scheduling - `CashFlowSchedule` (explicit dates) and `PeriodicCashFlowSchedule` (frequency-driven, backward from end date) with separate accrual and payment date arrays
+- [x] Cashflow scheduling - `CashFlowSchedule` (explicit dates) and `PeriodicCashFlowSchedule` (frequency-driven, backward from end date) with separate accrual and payment date arrays. Accrual (Period End Date) and payment date rolling both default to the specified business day convention, matching the default ISDA convention, the contract's own start date is left unadjusted
 - [x] Historic OIS fixing date generation
 
 ### `utils/`
+
 - [x] Interpolator - linear, log-linear, cubic spline, monotonic cubic spline (PCHIP), Akima
 - [x] Enumerations - `Currency`, `Frequency`, `Daycount`, `Dateroll`, `PayReceive`, `FloatingIndex`, `BuySell`, `InterpolationMethod`
 
 ### `instruments/`
+
 - [x] FX Forward
-- [x] Interest Rate Swap - `IRFixedLeg`, `IRFloatingLeg`; pay/receive, payment lag, OIS lookback
-- [x] IR Cap - `IRCap`; term rate underlyings (EURIBOR, Term SOFR); strike; no OIS/spread (out of scope)
+- [x] Interest Rate Swap - `IRFixedLeg`, `IRFloatingLeg`, pay/receive, payment lag, OIS lookback
+- [x] IR Cap/Floor - `IRCapFloor`, term rate underlyings (EURIBOR, Term SOFR), no OIS/spread (out of scope)
 
 ### `curves/`
-- [x] FX Curve - currency_2/currency_1 quote convention; configurable interpolation (default log-linear); `shock_curve(shock)` additive spot shock with CIP-consistent forward scaling
-- [x] IR Curve - accepts zero rates or discount factors and derives the other; configurable interpolation (default log-linear)
+
+- [x] FX Curve - currency_2/currency_1 quote convention, configurable interpolation (default log-linear), `shock_curve(shock)` additive spot shock with CIP-consistent forward scaling
+- [x] IR Curve - accepts zero rates or discount factors and derives the other, configurable interpolation (default log-linear)
 
 ### `models/`
+
 - [x] FX Forward Model - analytic pricing via covered interest rate parity
-- [x] IRS Model - fixed leg, floating IBOR leg (forward rates via DF ratio); OIS leg (forward periods via DF ratio); live and seasoned swaps; single and cross-currency
+- [x] IRS Model - fixed leg, floating IBOR leg (forward rates via DF ratio), OIS leg (forward periods via DF ratio), live and seasoned swaps, single and cross-currency
+- [x] IR Cap/Floor Model - Black-76 and Bachelier, vol-type switchable, seasoned caplets priced at intrinsic value, validated caplet-by-caplet against QuantLib
 
 ### `price_and_risk/`
-- [x] DCF engine - per-schedule FX curve assignment with currency validation; single-currency and cross-currency
-- [x] Greeks - `parallel_dv01(shock)` central difference bump-and-reprice; `fx_delta(shock)` CIP-consistent spot shock (general formula: N×P_f(0,T)); `cross_gamma(fx_shock, ir_shock)` four-point finite difference
+
+- [x] DCF engine - per-schedule FX curve assignment with currency validation, single-currency and cross-currency
+- [x] Greeks - `parallel_dv01(shock)` central difference bump-and-reprice, `fx_delta(shock)` CIP-consistent spot shock (general formula: N×P_f(0,T)), `cross_gamma(fx_shock, ir_shock)` four-point finite difference
 
 ### What's next
 
-The focus now is options and short-rate models, moving from one-factor Hull-White to the two-factor G2++, building toward a Bermudan swaption model-comparison study as the first milestone. Each new pricer ships with its risk sensitivities and is checked against closed-form results and QuantLib.
+Caps/floors are done, European swaptions (Black on the forward swap rate) and FX vanilla (Garman-Kohlhagen) are next to complete the options phase, followed by a minimal vol surface and short-rate models moving from one-factor Hull-White to the two-factor G2++, building toward a Bermudan swaption model-comparison study as the first milestone. Each new pricer ships with its risk sensitivities and is checked against closed-form results and QuantLib.
