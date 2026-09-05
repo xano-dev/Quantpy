@@ -312,23 +312,29 @@ def test_accrual_end_dates_are_sorted(periodic):
 
 
 def test_accrual_end_dates_unaffected_by_lag(periodic_with_lag):
-    """accrual_end_dates must not change when a payment lag is applied."""
-    expected_raw = [
+    """accrual_end_dates (business-day rolled) must not change when a payment
+    lag is applied — the lag only pushes payment_dates further out."""
+    expected_rolled = [
         dt.date(2027, 3, 31),
         dt.date(2027, 6, 30),
         dt.date(2027, 9, 30),
-        dt.date(2027, 12, 31),
+        dt.date(2027, 12, 30),  # 2027-12-31 (Friday) rolls back under this
+        # currency's holiday calendar; MODIFIED_FOLLOWING keeps it in December.
     ]
-    assert list(periodic_with_lag.accrual_end_dates) == expected_raw
+    assert list(periodic_with_lag.accrual_end_dates) == expected_rolled
 
 
-def test_accrual_end_dates_unaffected_by_dateroll(periodic_weekend_roll):
+def test_accrual_end_dates_reflect_dateroll(periodic_weekend_roll):
     """
-    Even when the raw end falls on a weekend, accrual_end_dates stores the
-    calendar date, not the rolled one.
+    Per the default ISDA Period End Date convention (Modified Following),
+    accrual_end_dates stores the rolled business day, not the raw calendar
+    date, when the raw end falls on a weekend.
     """
-    # 2026-05-31 is a Sunday and must appear as-is in accrual_end_dates
-    assert dt.date(2026, 5, 31) in list(periodic_weekend_roll.accrual_end_dates)
+    # 2026-05-31 is a Sunday; MODIFIED_FOLLOWING rolls it back to 2026-05-29
+    # (Friday) since rolling forward would cross into a new month.
+    accrual_end_dates = list(periodic_weekend_roll.accrual_end_dates)
+    assert dt.date(2026, 5, 29) in accrual_end_dates
+    assert dt.date(2026, 5, 31) not in accrual_end_dates
 
 
 # ===========================================================================
@@ -540,8 +546,8 @@ def test_periodic_accrual_yearfracs_periodic_use_accrual_dates_not_payment_dates
     payment_dates. If payment_dates were used, the Q4 2027 period start would
     be 2027-10-04 instead of 2027-09-30, producing a measurably different fraction.
     """
-    # Period 3: 2027-09-30 to 2027-12-31 = 92 days / 360
-    assert periodic_with_lag.accrual_yearfracs_periodic[3] == pytest.approx(92 / 360)
+    # Period 3: 2027-09-30 to 2027-12-30 (rolled from 2027-12-31) = 91 days / 360
+    assert periodic_with_lag.accrual_yearfracs_periodic[3] == pytest.approx(91 / 360)
 
 
 def test_periodic_payment_yearfracs_reflect_lagged_dates(periodic_with_lag):

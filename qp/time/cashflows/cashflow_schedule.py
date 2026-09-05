@@ -1,13 +1,14 @@
-from dateutil.relativedelta import relativedelta
 import datetime as dt
-import numpy as np
-import pandas as pd
 from calendar import monthrange
 
+import numpy as np
+import pandas as pd
+from dateutil.relativedelta import relativedelta
+
+from qp.time.date.dateroll import Dateroll, apply_payment_lag, roll_day
 from qp.time.date.daycount import Daycount, yearfrac
-from qp.time.date.dateroll import Dateroll, roll_day, apply_payment_lag
-from qp.utils.maps.general.frequencies import FREQUENCY_MAP, Frequency
 from qp.utils.maps.currency.currencies import Currency
+from qp.utils.maps.general.frequencies import FREQUENCY_MAP, Frequency
 
 
 class CashFlowSchedule:
@@ -280,7 +281,7 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
         stepped = end_date - step
         step_date = self._apply_dayroll(stepped.year, stepped.month)
 
-        accrual_end_dates: list[dt.date] = [end_date]
+        accrual_end_dates: list[dt.date] = [roll_day(end_date, self._dateroll, currency)]
         payment_dates: list[dt.date] = [
             apply_payment_lag(
                 roll_day(end_date, self._dateroll, currency),
@@ -291,9 +292,10 @@ class PeriodicCashFlowSchedule(CashFlowSchedule):
         ]
 
         while step_date > start_date:
-            accrual_end_dates.append(step_date)
-
+    
             rolled_date = roll_day(step_date, self._dateroll, currency)
+            
+            accrual_end_dates.append(rolled_date)
 
             lagged_day = apply_payment_lag(
                 rolled_date,

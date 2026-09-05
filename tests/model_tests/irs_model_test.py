@@ -1,18 +1,19 @@
 import datetime as dt
 from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 
+from qp.curves.ir_curve import IRCurve
 from qp.instruments.rates.irs import IRS, IRFixedLeg, IRFloatingLeg
 from qp.models.rates.irs_model import IRSModel
+from qp.time.date.dateroll import Dateroll
+from qp.time.date.daycount import Daycount, yearfrac
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.frequencies import Frequency
 from qp.utils.maps.general.payreceive import PayReceive
 from qp.utils.maps.rates.floating_indexes import FloatingIndex
 from qp.utils.maps.rates.leg_type import LegType
-from qp.time.date.daycount import Daycount, yearfrac
-from qp.time.date.dateroll import Dateroll
-from qp.curves.ir_curve import IRCurve
 
 VALUATION_DATE = dt.date(2026, 6, 1)
 START_DATE = dt.date(2026, 6, 3)  # spot-starting T+2
@@ -152,12 +153,21 @@ def test_fixed_leg_cashflow_magnitude():
 
 
 def test_fixed_leg_cashflows_sum():
-    """Total undiscounted fixed cashflows over 2Y."""
+    """Total undiscounted fixed cashflows over 2Y.
+    
+    2026-06-03 -> 2026-12-03 yf= 0.5
+    2026-12-03 -> 2027-06-03 yf= 0.5
+    2027-06-03 -> 2027-12-03 yf= 0.5
+    2027-12-03 -> 2028-06-05 yf= 0.5055555555555555
+    
+    sum_yf = 2.0055555555555555
+    
+    """
     schedules = make_model().price(
         make_irs(leg_one=make_fixed_leg(pay_receive=PayReceive.RECEIVE))
     )
     assert schedules[0].cashflows.sum() == pytest.approx(
-        NOTIONAL * FIXED_RATE * 0.5 * 4, rel=1e-4
+        NOTIONAL * FIXED_RATE * 2.0055555555555555, rel=1e-4
     )
 
 

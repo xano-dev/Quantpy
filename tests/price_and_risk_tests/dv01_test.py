@@ -1,23 +1,24 @@
 import datetime as dt
-import pytest
-import numpy as np
 
-from qp.price_and_risk.greeks import Greeks
-from qp.price_and_risk.discount_cashflows import DCFPricer
-from qp.price_and_risk.pricing_spec import PricingSpec
-from qp.models.rates.irs_model import IRSModel
-from qp.models.fx.fx_forward_model import FXForwardModel
-from qp.instruments.rates.irs import IRS, IRFixedLeg, IRFloatingLeg
-from qp.instruments.fx.fx_forward import FXForward
-from qp.curves.ir_curve import IRCurve
+import numpy as np
+import pytest
+
 from qp.curves.fx_curve import FXCurve
+from qp.curves.ir_curve import IRCurve
+from qp.instruments.fx.fx_forward import FXForward
+from qp.instruments.rates.irs import IRS, IRFixedLeg, IRFloatingLeg
+from qp.models.fx.fx_forward_model import FXForwardModel
+from qp.models.rates.irs_model import IRSModel
+from qp.price_and_risk.discount_cashflows import DCFPricer
+from qp.price_and_risk.greeks import Greeks
+from qp.price_and_risk.pricing_spec import PricingSpec
+from qp.time.cashflows.cashflow_schedule import PeriodicCashFlowSchedule
+from qp.time.date.dateroll import Dateroll, apply_payment_lag, roll_day
+from qp.time.date.daycount import Daycount, yearfrac
 from qp.utils.maps.currency.currencies import Currency
 from qp.utils.maps.general.frequencies import Frequency
 from qp.utils.maps.general.payreceive import PayReceive
 from qp.utils.maps.rates.floating_indexes import FloatingIndex
-from qp.time.date.daycount import Daycount, yearfrac
-from qp.time.date.dateroll import Dateroll
-from qp.time.cashflows.cashflow_schedule import PeriodicCashFlowSchedule
 
 VALUATION_DATE = dt.date(2025, 1, 1)
 START_DATE = dt.date(2025, 1, 3)
@@ -63,22 +64,22 @@ def test_dv01_fixed_flat():
     upward_fixed_leg = -(
         NOTIONAL
         * C
-        * yearfrac(START_DATE, END_DATE, Daycount.ACT_365)
+        * yearfrac(START_DATE, roll_day(END_DATE, Dateroll.MODIFIED_FOLLOWING, Currency.USD), Daycount.ACT_365)
         * np.exp(
             -(R + SHOCK)
             * yearfrac(
-                VALUATION_DATE, END_DATE + dt.timedelta(days=2), Daycount.ACT_365
+                VALUATION_DATE, roll_day(END_DATE, Dateroll.MODIFIED_FOLLOWING, Currency.USD), Daycount.ACT_365
             )
         )
     )
     downward_fixed_leg = -(
         NOTIONAL
         * C
-        * yearfrac(START_DATE, END_DATE, Daycount.ACT_365)
+        * yearfrac(START_DATE, roll_day(END_DATE, Dateroll.MODIFIED_FOLLOWING, Currency.USD), Daycount.ACT_365)
         * np.exp(
             -(R - SHOCK)
             * yearfrac(
-                VALUATION_DATE, END_DATE + dt.timedelta(days=2), Daycount.ACT_365
+                VALUATION_DATE, roll_day(END_DATE, Dateroll.MODIFIED_FOLLOWING, Currency.USD), Daycount.ACT_365
             )
         )
     )
@@ -210,6 +211,10 @@ def test_dv01_float_leg():
 
     dv01 = greeks.parallel_dv01(shock=SHOCK)
 
+    # abs=0.6: expected_dv01's telescoping identity NOTIONAL*(DF(start)-DF(end))
+    # is only exact for a floating leg paid exactly at its accrual dates; the
+    # real model applies a T+2 payment lag, so the two structurally diverge by
+    # a small, non-noise amount this tolerance is sized to absorb.
     assert abs(dv01) == pytest.approx(expected_dv01, abs=0.6)
 
 
@@ -248,22 +253,22 @@ def test_dv01_additivity():
     upward_fixed_leg = -(
         NOTIONAL
         * C
-        * yearfrac(START_DATE, END_DATE, Daycount.ACT_365)
+        * yearfrac(START_DATE, roll_day(END_DATE, Dateroll.MODIFIED_FOLLOWING, Currency.USD), Daycount.ACT_365)
         * np.exp(
             -(R + SHOCK)
             * yearfrac(
-                VALUATION_DATE, END_DATE + dt.timedelta(days=2), Daycount.ACT_365
+                VALUATION_DATE, roll_day(END_DATE, Dateroll.MODIFIED_FOLLOWING, Currency.USD), Daycount.ACT_365
             )
         )
     )
     downward_fixed_leg = -(
         NOTIONAL
         * C
-        * yearfrac(START_DATE, END_DATE, Daycount.ACT_365)
+        * yearfrac(START_DATE, roll_day(END_DATE, Dateroll.MODIFIED_FOLLOWING, Currency.USD), Daycount.ACT_365)
         * np.exp(
             -(R - SHOCK)
             * yearfrac(
-                VALUATION_DATE, END_DATE + dt.timedelta(days=2), Daycount.ACT_365
+                VALUATION_DATE, roll_day(END_DATE, Dateroll.MODIFIED_FOLLOWING, Currency.USD), Daycount.ACT_365
             )
         )
     )
@@ -309,4 +314,8 @@ def test_dv01_additivity():
 
     dv01 = greeks.parallel_dv01(shock=SHOCK)
 
+    # abs=0.6: expected_float_dv01's telescoping identity is only exact for a
+    # floating leg paid exactly at its accrual dates; the real model applies a
+    # T+2 payment lag, so the two structurally diverge by a small, non-noise
+    # amount this tolerance is sized to absorb (see test_dv01_float_leg).
     assert dv01 == pytest.approx(expected_dv01, abs=0.6)
